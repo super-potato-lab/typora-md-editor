@@ -19,6 +19,12 @@ const themeHrefs = import.meta.glob("../themes/*.css", {
   import: "default",
 }) as Record<string, string>;
 
+const themeSources = import.meta.glob("../themes/*.css", {
+  eager: true,
+  query: "?raw",
+  import: "default",
+}) as Record<string, string>;
+
 function labelFor(id: string): string {
   return LABELS[id] ?? id.charAt(0).toUpperCase() + id.slice(1);
 }
@@ -41,6 +47,11 @@ export const themes: ThemeInfo[] = Object.entries(themeHrefs)
     if (bi === -1) return -1;
     return ai - bi;
   });
+
+export function themeCss(id: string): string {
+  const entry = Object.entries(themeSources).find(([path]) => idFromPath(path) === id);
+  return entry?.[1] ?? "";
+}
 
 export function readSavedTheme(): string {
   const fallback = themes.find((theme) => theme.id === "github")?.id ?? themes[0]?.id ?? "github";

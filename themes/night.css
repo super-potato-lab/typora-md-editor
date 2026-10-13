@@ -21,6 +21,8 @@
   --link-color: #9dc1ff;
   --menu-hover: #232833;
   --danger-color: #ff8b92;
+  --find-bg: rgba(255, 214, 102, 0.35);
+  --find-active-bg: rgba(255, 176, 32, 0.72);
   --content-font: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
   --heading-font: var(--content-font);
   --monospace: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
