@@ -46,26 +46,43 @@ interface Span {
   text: string;
 }
 
-function findMatches(doc: ProseNode, query: string, caseSensitive: boolean): TextMatch[] {
+export function findMatches(doc: ProseNode, query: string, caseSensitive: boolean): TextMatch[] {
   if (!query) return [];
+  const needle = caseSensitive ? query : query.toLowerCase();
+  const matches: TextMatch[] = [];
+  doc.descendants((node, pos) => {
+    if (!node.isTextblock) return;
+    matches.push(...matchesInTextblock(node, pos, needle, caseSensitive));
+    return false;
+  });
+  return matches;
+}
+
+function matchesInTextblock(
+  block: ProseNode,
+  blockPos: number,
+  needle: string,
+  caseSensitive: boolean,
+): TextMatch[] {
   const spans: Span[] = [];
   let haystack = "";
-  doc.descendants((node, pos) => {
+  // Positions from Node.descendants are relative to this block's content.
+  block.descendants((node, pos) => {
     if (!node.isText || !node.text) return;
-    spans.push({ start: haystack.length, from: pos, text: node.text });
+    spans.push({ start: haystack.length, from: blockPos + 1 + pos, text: node.text });
     haystack += node.text;
   });
+  if (haystack.length < needle.length) return [];
 
-  const needle = caseSensitive ? query : query.toLowerCase();
   const hay = caseSensitive ? haystack : haystack.toLowerCase();
   const matches: TextMatch[] = [];
   let index = 0;
-  while (needle.length > 0 && index <= hay.length - needle.length) {
+  while (index <= hay.length - needle.length) {
     const found = hay.indexOf(needle, index);
     if (found < 0) break;
-    const from = positionAt(spans, found);
-    const to = positionAt(spans, found + needle.length);
-    if (from != null && to != null && to > from && sameBlock(doc, from, to)) {
+    const from = positionAt(spans, found, "start");
+    const to = positionAt(spans, found + needle.length, "end");
+    if (from != null && to != null && to > from) {
       matches.push({ from, to });
     }
     index = found + needle.length;
@@ -73,22 +90,20 @@ function findMatches(doc: ProseNode, query: string, caseSensitive: boolean): Tex
   return matches;
 }
 
-function positionAt(spans: Span[], index: number): number | null {
+function positionAt(spans: Span[], index: number, side: "start" | "end"): number | null {
   for (const span of spans) {
     const end = span.start + span.text.length;
-    if (index >= span.start && index <= end) {
+    if (side === "start") {
+      // A shared boundary belongs to the next text node, so a match is not
+      // pinned to the end of the previous run.
+      if (index >= span.start && index < end) {
+        return span.from + (index - span.start);
+      }
+    } else if (index > span.start && index <= end) {
       return span.from + (index - span.start);
     }
   }
   return null;
-}
-
-function sameBlock(doc: ProseNode, from: number, to: number): boolean {
-  try {
-    return doc.resolve(from).sameParent(doc.resolve(to - 1));
-  } catch {
-    return false;
-  }
 }
 
 function decorate(doc: ProseNode, matches: TextMatch[], active: number): DecorationSet {

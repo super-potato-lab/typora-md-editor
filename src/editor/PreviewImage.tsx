@@ -1,8 +1,7 @@
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import Image from "@tiptap/extension-image";
-import { convertFileSrc } from "@tauri-apps/api/core";
-import { isTauri } from "../files";
 import { useDocumentDir } from "../documentDir";
+import { displayImageSrc } from "./imageSrc";
 
 export const PreviewImage = Image.extend({
   addNodeView() {
@@ -16,23 +15,8 @@ function ImageNodeView({ node }: NodeViewProps) {
   const alt = typeof node.attrs.alt === "string" ? node.attrs.alt : "";
   return (
     <NodeViewWrapper className="image-block">
-      <img src={displaySrc(stored, directory)} alt={alt} />
+      <img src={displayImageSrc(stored, directory)} alt={alt} />
     </NodeViewWrapper>
   );
 }
 
-function displaySrc(stored: string, directory: string | null): string {
-  if (!stored) return stored;
-  if (/^(?:https?:|data:|blob:|asset:|tauri:)/u.test(stored)) return stored;
-  if (!directory || !isTauri()) return stored;
-  const separator = directory.includes("\\") ? "\\" : "/";
-  const relative = separator === "\\" ? stored.replaceAll("/", "\\") : stored;
-  const absolute = directory.endsWith(separator)
-    ? `${directory}${relative}`
-    : `${directory}${separator}${relative}`;
-  try {
-    return convertFileSrc(absolute);
-  } catch {
-    return stored;
-  }
-}

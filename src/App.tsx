@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { MarkdownEditor, type MarkdownEditorHandle } from "./editor/MarkdownEditor";
-import { buildExportHtml, printHtml } from "./editor/exportHtml";
+import { buildExportHtml, buildPrintHtml, printHtml } from "./editor/exportHtml";
 import type { DocStats, OutlineItem } from "./editor/outline";
 import {
   basename,
@@ -184,12 +184,15 @@ export function App() {
     try {
       const content = editorRef.current?.getMarkdown() ?? "";
       const suggested = pathRef.current ? basename(pathRef.current) : "Untitled.md";
-      const saved = await saveMarkdownFileAs(content, suggested);
+      const saved = await saveMarkdownFileAs(content, suggested, pathRef.current);
       if (!saved) return;
-      setPath(saved);
-      editorRef.current?.setDocumentPath(saved);
+      if (saved.content !== content) {
+        editorRef.current?.setMarkdown(saved.content);
+      }
+      setPath(saved.path);
+      editorRef.current?.setDocumentPath(saved.path);
       editorRef.current?.markSaved();
-      setRecent(rememberRecent(saved));
+      setRecent(rememberRecent(saved.path));
       note("info", "Saved");
     } catch (err) {
       note("error", errorMessage(err));
@@ -265,14 +268,18 @@ export function App() {
   }, [note, theme]);
 
   const exportPdf = useCallback(() => {
-    const html = buildExportHtml({
-      title: pathRef.current ? basename(pathRef.current) : "Untitled",
-      bodyHtml: editorRef.current?.getHTML() ?? "",
-      themeId: theme,
-    });
+    const current = pathRef.current;
     try {
-      printHtml(html);
+      const html = buildPrintHtml({
+        title: current ? basename(current) : "Untitled",
+        bodyHtml: editorRef.current?.getHTML() ?? "",
+        themeId: theme,
+        documentDir: current ? dirname(current) : null,
+      });
       note("info", "Choose Save as PDF in the print dialog.");
+      void printHtml(html).catch((err: unknown) => {
+        note("error", errorMessage(err));
+      });
     } catch (err) {
       note("error", errorMessage(err));
     }
