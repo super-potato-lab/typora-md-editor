@@ -33,6 +33,7 @@ Other scripts:
 | `npm run tauri build` | Production bundle for the current operating system |
 | `node scripts/package-windows-portable.mjs` | After a Windows `tauri build`, zip the no-install executable |
 | `node --test scripts/package-windows-portable.test.mjs` | Checks that portable zip layout |
+| `node --test scripts/resolve-release-tag.test.mjs` | Checks which tag a release run publishes |
 | `cargo test --manifest-path src-tauri/Cargo.toml` | Rust unit tests |
 | `cargo check --manifest-path src-tauri/Cargo.toml` | Rust compile check |
 
@@ -68,16 +69,16 @@ Tauri 2.12 has no portable bundle target (`nsis` and `msi` are the Windows forma
 
 Windows 11 already includes WebView2. On Windows 10, install that runtime before using the portable zip. The portable copy is the same executable as the installers, so settings stay in your user profile rather than in the unzipped folder. Both are unsigned, so SmartScreen may warn.
 
-Trigger a release by pushing a version tag:
+Either of these puts the setup `.exe`, the `.msi`, and `Markdown-Editor_<version>_x64-portable.zip` on the [GitHub Releases](https://github.com/super-potato-lab/typora-md-editor/releases) page. Both also upload workflow artifacts.
+
+**Push a version tag.** The tag name is the release.
 
 ```bash
 git tag v0.2.0
 git push origin v0.2.0
 ```
 
-That tag run builds the installers and the portable zip, uploads them as workflow artifacts, and creates a GitHub Release named after the tag with the setup `.exe`, the `.msi`, and `Markdown-Editor_<version>_x64-portable.zip` attached.
-
-You can also run the workflow manually from the Actions tab (**Run workflow**). A manual run uploads the same Windows artifacts, including the portable zip, and does not create a release.
+**Run workflow** from the Actions tab. Leave **Version** empty to read `version` from `src-tauri/tauri.conf.json` (and from `package.json` if that field is empty). `0.1.0` becomes the tag `v0.1.0`. Type `0.2.0` or `v0.2.0` to publish a different tag. The run creates the tag when it is missing, creates or updates the Release for that tag, and uploads the three Windows files as release assets. Running the same version again replaces those assets.
 
 No signing secrets are required. `GITHUB_TOKEN` is the token Actions provides for the repository. You do not add a secret to build or publish these unsigned files.
 
@@ -106,7 +107,7 @@ themes/                 Document themes. Drop in another lowercase .css file to 
 src-tauri/              Tauri 2 shell
   src/lib.rs            Open/save, image assets, HTML export
   capabilities/         Window permissions
-scripts/                Portable Windows zip (no installer)
+scripts/                Portable Windows zip and release tag
 .github/workflows/      Windows installer and portable zip workflow
 ```
 

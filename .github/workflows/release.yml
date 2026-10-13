@@ -5,6 +5,12 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, such as 0.1.0. Leave empty to use src-tauri/tauri.conf.json. The tag is v plus that version."
+        required: false
+        default: ""
+        type: string
 
 jobs:
   build:
@@ -25,6 +31,21 @@ jobs:
         with:
           workspaces: "./src-tauri -> target"
 
+      - name: Resolve release tag
+        id: release
+        shell: pwsh
+        env:
+          # inputs is unset on a tag push and fails the workflow if referenced there.
+          RELEASE_REF_TYPE: ${{ github.ref_type }}
+          RELEASE_REF_NAME: ${{ github.ref_name }}
+          RELEASE_VERSION_INPUT: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.version || '' }}
+        run: |
+          $raw = node scripts/resolve-release-tag.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $json = $raw.Trim() | ConvertFrom-Json
+          "tag=$($json.tag)" >> $env:GITHUB_OUTPUT
+          "name=Markdown Editor $($json.tag)" >> $env:GITHUB_OUTPUT
+
       - name: Install frontend dependencies
         run: npm ci
 
@@ -33,9 +54,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # A tag push creates the GitHub Release. workflow_dispatch only uploads artifacts.
-          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-          releaseName: ${{ github.ref_type == 'tag' && format('Markdown Editor {0}', github.ref_name) || '' }}
+          # Tag pushes and manual runs both publish a Release. An empty tagName skips it.
+          tagName: ${{ steps.release.outputs.tag }}
+          releaseName: ${{ steps.release.outputs.name }}
+          releaseCommitish: ${{ github.sha }}
           releaseBody: |
             Unsigned Windows builds for Markdown Editor.
 
@@ -67,8 +89,7 @@ jobs:
           if-no-files-found: error
 
       - name: Attach portable zip to the GitHub Release
-        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
-        run: gh release upload "${{ github.ref_name }}" "${{ steps.portable.outputs.zip }}" --clobber
+        run: gh release upload "${{ steps.release.outputs.tag }}" "${{ steps.portable.outputs.zip }}" --clobber
