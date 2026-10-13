@@ -1,0 +1,49 @@
+name: Windows release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build unsigned Windows installers
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # A tag push creates the GitHub Release. workflow_dispatch only uploads artifacts.
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          releaseName: ${{ github.ref_type == 'tag' && format('Markdown Editor {0}', github.ref_name) || '' }}
+          releaseBody: |
+            Unsigned Windows installers for Markdown Editor.
+
+            The NSIS setup (`.exe`) and WiX installer (`.msi`) are attached.
+            They are not code-signed. Windows SmartScreen may warn until a certificate is added.
+          releaseDraft: false
+          prerelease: false
+          args: --bundles nsis,msi
+          uploadWorkflowArtifacts: true
+          uploadUpdaterJson: false
+          uploadUpdaterSignatures: false
