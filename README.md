@@ -30,7 +30,7 @@ Other scripts:
 | --- | --- |
 | `npm run dev` | Frontend only (open/save dialogs need the Tauri window) |
 | `npm run build` | Typecheck and bundle the frontend to `dist/` |
-| `npm test` | Markdown round-trip checks (math, Mermaid, footnotes, contents) |
+| `npm test` | Editor regressions: tables, find/replace, save races, undo, math, Mermaid, footnotes, contents |
 | `npm run tauri build` | Production bundle for the current operating system |
 | `node scripts/package-windows-portable.mjs` | After a Windows `tauri build`, zip the no-install executable |
 | `node --test scripts/package-windows-portable.test.mjs` | Checks that portable zip layout |
@@ -46,6 +46,7 @@ Other scripts:
 - **File → Open…** (`Ctrl/Cmd+O`) opens a `.md` or `.markdown` file.
 - **File → Save** (`Ctrl/Cmd+S`) writes the current path, or asks for one if the document is still untitled.
 - **File → Save As…** (`Ctrl/Cmd+Shift+S`) always asks for a path. A name without an extension is saved as `.md`.
+- GitHub-style tables open as tables and are written back as Markdown tables.
 - **File → Insert Image…**, or paste / drop an image. The file is copied into an `assets/` folder next to the Markdown file, and the document gets a relative image link such as `![diagram](assets/diagram.png)`. Save the document before inserting an image.
 - **File → Export HTML…** writes a standalone HTML file that includes the active theme. Image links stay relative, so keep the HTML next to the Markdown file and its `assets/` folder.
 - **File → Export PDF…** opens the system print dialog on a theme-styled copy of the document. Choose **Save as PDF** (or Microsoft Print to PDF). There is no bundled PDF engine.

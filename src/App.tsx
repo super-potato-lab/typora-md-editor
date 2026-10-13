@@ -23,6 +23,7 @@ import { FindBar } from "./chrome/FindBar";
 import { Menu, MenuItem, MenuSeparator } from "./chrome/Menu";
 import { OutlineSidebar } from "./chrome/OutlineSidebar";
 import { handleCloseRequest } from "./closeGuard";
+import { createSaveSerializer, savedSnapshotStillCurrent, type SaveSnapshot } from "./saveSession";
 
 interface Status {
   kind: "info" | "error";
@@ -76,6 +77,11 @@ export function App() {
   const editorRef = useRef<MarkdownEditorHandle>(null);
   const dirtyRef = useRef(false);
   const pathRef = useRef<string | null>(null);
+  const saveSerializerRef = useRef<ReturnType<typeof createSaveSerializer> | null>(null);
+  if (saveSerializerRef.current == null) {
+    saveSerializerRef.current = createSaveSerializer();
+  }
+  const enqueueSave = saveSerializerRef.current.enqueue.bind(saveSerializerRef.current);
   const findInputRef = useRef<HTMLInputElement>(null);
   const replaceInputRef = useRef<HTMLInputElement>(null);
   const [path, setPath] = useState<string | null>(null);
@@ -162,6 +168,7 @@ export function App() {
 
   const loadDocument = useCallback(
     (nextPath: string, content: string) => {
+      pathRef.current = nextPath;
       editorRef.current?.setMarkdown(content);
       editorRef.current?.setDocumentPath(nextPath);
       setPath(nextPath);
@@ -222,22 +229,38 @@ export function App() {
   );
 
   const saveAs = useCallback(async () => {
+    const startedPath = pathRef.current;
+    const markdown = editorRef.current?.getMarkdown() ?? "";
+    const suggested = startedPath ? basename(startedPath) : t("doc.untitledFile");
     try {
-      const content = editorRef.current?.getMarkdown() ?? "";
-      const suggested = pathRef.current ? basename(pathRef.current) : t("doc.untitledFile");
-      const saved = await saveMarkdownFileAs(content, suggested, pathRef.current, {
+      const saved = await saveMarkdownFileAs(markdown, suggested, startedPath, {
         title: t("dialog.saveTitle"),
         filter: t("dialog.filterMarkdown"),
       });
       if (!saved) return;
-      if (saved.content !== content) {
-        editorRef.current?.setMarkdown(saved.content);
-      }
-      setPath(saved.path);
-      editorRef.current?.setDocumentPath(saved.path);
-      editorRef.current?.markSaved();
-      setRecent(rememberRecent(saved.path));
-      note("info", t("status.saved"));
+      const snapshot: SaveSnapshot = { path: saved.path, markdown: saved.content };
+      // The dialog already wrote the file, including rewritten image links.
+      // Queue that same text so an older save of this path cannot finish last.
+      await enqueueSave(saved.path, async () => {
+        await saveMarkdownFile(saved.path, saved.content);
+        setRecent(rememberRecent(saved.path));
+        if (pathRef.current !== startedPath) return;
+        const stillSnapshot = savedSnapshotStillCurrent(
+          { path: startedPath, markdown },
+          { path: startedPath, markdown: editorRef.current?.getMarkdown() ?? "" },
+        );
+        pathRef.current = saved.path;
+        setPath(saved.path);
+        editorRef.current?.setDocumentPath(saved.path);
+        if (stillSnapshot) {
+          if (saved.content !== markdown) {
+            editorRef.current?.setMarkdown(saved.content);
+          } else {
+            editorRef.current?.markSaved(snapshot);
+          }
+        }
+        note("info", t("status.saved"));
+      });
     } catch (err) {
       note("error", localizeError(err));
     }
@@ -249,12 +272,15 @@ export function App() {
       await saveAs();
       return;
     }
+    const markdown = editorRef.current?.getMarkdown() ?? "";
+    const snapshot: SaveSnapshot = { path: current, markdown };
     try {
-      const content = editorRef.current?.getMarkdown() ?? "";
-      await saveMarkdownFile(current, content);
-      editorRef.current?.markSaved();
-      setRecent(rememberRecent(current));
-      note("info", t("status.saved"));
+      await enqueueSave(current, async () => {
+        await saveMarkdownFile(current, markdown);
+        setRecent(rememberRecent(current));
+        editorRef.current?.markSaved(snapshot);
+        if (pathRef.current === current) note("info", t("status.saved"));
+      });
     } catch (err) {
       note("error", localizeError(err));
     }
