@@ -1,0 +1,28 @@
+/*
+ * Light document theme.
+ * Loaded as #theme_css and applied to the editor root (#write) plus window chrome variables.
+ * Original stylesheet — not derived from another editor's theme files.
+ */
+
+:root {
+  color-scheme: light;
+  --bg-color: #ffffff;
+  --text-color: #1f2328;
+  --chrome-bg: #f6f8fa;
+  --chrome-text: #1f2328;
+  --chrome-border: #d0d7de;
+  --muted-color: #59636e;
+  --primary-color: #0969da;
+  --code-bg: #f6f8fa;
+  --code-color: #1f2328;
+  --quote-border: #d0d7de;
+  --heading-border: #d8dee4;
+  --select-bg: #b6d7ff;
+  --link-color: #0969da;
+  --menu-hover: #e8edf2;
+  --danger-color: #cf222e;
+  --content-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --heading-font: var(--content-font);
+  --monospace: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --write-max-width: 860px;
+}
