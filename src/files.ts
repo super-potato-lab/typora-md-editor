@@ -35,12 +35,22 @@ export async function saveMarkdownFile(path: string, content: string): Promise<v
   await invoke("save_markdown", { path, content });
 }
 
+export interface SavedMarkdown {
+  path: string;
+  content: string;
+}
+
 export async function saveMarkdownFileAs(
   content: string,
   suggestedName: string,
-): Promise<string | null> {
+  sourcePath: string | null,
+): Promise<SavedMarkdown | null> {
   assertDesktop();
-  return invoke<string | null>("save_markdown_as", { content, suggestedName });
+  return invoke<SavedMarkdown | null>("save_markdown_as", {
+    content,
+    suggestedName,
+    sourcePath,
+  });
 }
 
 export async function exportHtmlFile(
