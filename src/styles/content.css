@@ -122,6 +122,96 @@
   font-size: 0.86em;
 }
 
+#write pre[data-language] {
+  position: relative;
+  padding-top: 1.7rem;
+}
+
+#write pre[data-language]::before {
+  content: attr(data-language);
+  position: absolute;
+  top: 0.45rem;
+  right: 0.75rem;
+  color: var(--muted-color, #59636e);
+  font-family: var(--monospace, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
+
+#write pre .hljs-comment,
+#write pre .hljs-quote {
+  color: var(--hl-comment, #6e7781);
+  font-style: italic;
+}
+
+#write pre .hljs-keyword,
+#write pre .hljs-selector-tag,
+#write pre .hljs-doctag,
+#write pre .hljs-template-tag {
+  color: var(--hl-keyword, #cf222e);
+}
+
+#write pre .hljs-string,
+#write pre .hljs-regexp,
+#write pre .hljs-addition,
+#write pre .hljs-meta .hljs-string {
+  color: var(--hl-string, #0a3069);
+}
+
+#write pre .hljs-number,
+#write pre .hljs-literal,
+#write pre .hljs-symbol,
+#write pre .hljs-bullet {
+  color: var(--hl-number, #0550ae);
+}
+
+#write pre .hljs-title,
+#write pre .hljs-title.function_,
+#write pre .hljs-section,
+#write pre .hljs-title.class_ {
+  color: var(--hl-title, #8250df);
+}
+
+#write pre .hljs-built_in,
+#write pre .hljs-type,
+#write pre .hljs-class {
+  color: var(--hl-built-in, #0550ae);
+}
+
+#write pre .hljs-attr,
+#write pre .hljs-attribute,
+#write pre .hljs-property,
+#write pre .hljs-selector-class,
+#write pre .hljs-selector-id,
+#write pre .hljs-selector-attr {
+  color: var(--hl-attr, #116329);
+}
+
+#write pre .hljs-variable,
+#write pre .hljs-template-variable,
+#write pre .hljs-params {
+  color: var(--hl-variable, #953800);
+}
+
+#write pre .hljs-meta,
+#write pre .hljs-meta .hljs-keyword {
+  color: var(--hl-meta, #8250df);
+}
+
+#write pre .hljs-name,
+#write pre .hljs-tag {
+  color: var(--hl-tag, #116329);
+}
+
+#write pre .hljs-deletion {
+  color: var(--hl-deletion, #82071e);
+}
+
 #write img {
   max-width: 100%;
   height: auto;

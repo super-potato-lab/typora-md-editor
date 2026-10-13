@@ -27,4 +27,15 @@
   --heading-font: var(--content-font);
   --monospace: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --write-max-width: 860px;
+  --hl-comment: #6e7781;
+  --hl-keyword: #cf222e;
+  --hl-string: #0a3069;
+  --hl-number: #0550ae;
+  --hl-title: #8250df;
+  --hl-built-in: #0550ae;
+  --hl-attr: #116329;
+  --hl-variable: #953800;
+  --hl-meta: #8250df;
+  --hl-tag: #116329;
+  --hl-deletion: #82071e;
 }

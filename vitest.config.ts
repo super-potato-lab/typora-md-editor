@@ -10,6 +10,7 @@ export default defineConfig({
       "src/editor/tables.test.ts",
       "src/editor/findReplace.test.ts",
       "src/editor/loadDocument.test.ts",
+      "src/editor/codeHighlight.test.ts",
       "src/saveSession.test.ts",
     ],
   },
