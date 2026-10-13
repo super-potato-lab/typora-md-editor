@@ -55,9 +55,9 @@ export function buildPrintHtml(options: {
   });
 }
 
-export async function printHtml(html: string): Promise<void> {
+export async function printHtml(html: string, frameTitle = "Print preview"): Promise<void> {
   const iframe = document.createElement("iframe");
-  iframe.setAttribute("title", "Print preview");
+  iframe.setAttribute("title", frameTitle);
   iframe.setAttribute("aria-hidden", "true");
   iframe.style.position = "fixed";
   iframe.style.left = "-10000px";
