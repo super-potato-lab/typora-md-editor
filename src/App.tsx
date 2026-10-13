@@ -89,6 +89,7 @@ export function App() {
   const [theme, setTheme] = useState(readSavedTheme);
   const [status, setStatus] = useState<Status | null>(null);
   const [outline, setOutline] = useState<OutlineItem[]>([]);
+  const [activePos, setActivePos] = useState<number | null>(null);
   const [stats, setStats] = useState<DocStats>({ words: 0, chars: 0 });
   const [marks, setMarks] = useState<Marks>({ bold: false, italic: false, code: false });
   const [outlineOpen, setOutlineOpen] = useState(readOutlineOpen);
@@ -634,6 +635,7 @@ export function App() {
               outline={outline}
               recent={recent}
               currentPath={path}
+              activePos={activePos}
               onJump={(pos) => editorRef.current?.scrollToOutline(pos)}
               onOpenRecent={(recentPath) => void openRecent(recentPath)}
             />
@@ -654,20 +656,49 @@ export function App() {
                 setOutline(nextOutline);
                 setStats(nextStats);
               }}
+              onActiveHeading={setActivePos}
               onMarksChange={setMarks}
               onError={(message) => note("error", localizeError(message))}
             />
           </div>
         </div>
         <footer className="statusbar">
-          <span>{editorMode === "source" ? t("view.source") : t("view.wysiwyg")}</span>
+          <button
+            type="button"
+            className="sidebar-toggle"
+            aria-pressed={outlineOpen}
+            aria-label={t("sidebar.toggle")}
+            title={t("sidebar.toggle")}
+            onClick={toggleOutline}
+          >
+            <SidebarToggleIcon />
+          </button>
           <span>{wordLabel}</span>
           <span>{t("status.chars", { count: stats.chars })}</span>
+          <span>{editorMode === "source" ? t("view.source") : t("view.wysiwyg")}</span>
           <span className="statusbar-path" title={path ?? untitled}>
             {path ?? untitled}
           </span>
         </footer>
       </div>
     </DocumentDirProvider>
+  );
+}
+
+function SidebarToggleIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <rect
+        x="1.25"
+        y="2.25"
+        width="13.5"
+        height="11.5"
+        rx="1.25"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.2"
+      />
+      <path d="M6.1 2.4v11.2" stroke="currentColor" strokeWidth="1.2" />
+    </svg>
   );
 }
