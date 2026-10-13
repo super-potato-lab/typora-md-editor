@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ask } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { MarkdownEditor, type MarkdownEditorHandle } from "./editor/MarkdownEditor";
 import { buildExportHtml, printHtml } from "./editor/exportHtml";
@@ -21,6 +22,7 @@ import { DocumentDirProvider } from "./documentDir";
 import { FindBar } from "./chrome/FindBar";
 import { Menu, MenuItem, MenuSeparator } from "./chrome/Menu";
 import { OutlineSidebar } from "./chrome/OutlineSidebar";
+import { handleCloseRequest } from "./closeGuard";
 
 interface Status {
   kind: "info" | "error";
@@ -95,11 +97,22 @@ export function App() {
     if (!isTauri()) return;
     let unlisten: (() => void) | undefined;
     let cancelled = false;
+    // X and Alt+F4 both emit close-requested. Tauri then calls destroy()
+    // unless preventDefault ran, which needs core:window:allow-destroy.
+    // window.confirm is synchronous and deadlocks WebView2 on Windows, so
+    // the close never finishes. ask() is async and only runs when dirty.
+    let asking = false;
     void getCurrentWindow()
-      .onCloseRequested((event) => {
-        if (dirtyRef.current && !window.confirm("Discard unsaved changes?")) {
-          event.preventDefault();
-        }
+      .onCloseRequested(async (event) => {
+        const alreadyAsking = asking;
+        if (dirtyRef.current && !alreadyAsking) asking = true;
+        const outcome = await handleCloseRequest(event, dirtyRef.current, alreadyAsking, () =>
+          ask("Discard unsaved changes?", {
+            title: "Markdown Editor",
+            kind: "warning",
+          }),
+        );
+        if (outcome === "stay" && !alreadyAsking) asking = false;
       })
       .then((stop) => {
         if (cancelled) stop();

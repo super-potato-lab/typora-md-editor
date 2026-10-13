@@ -53,7 +53,7 @@ Other scripts:
 - **Theme** switches the document skin. The choice is stored in `localStorage`.
 - The window title shows the full path and a dirty marker. The status bar shows the word count, character count, and path.
 
-Closing the window asks before discarding unsaved edits.
+Closing the window (the title-bar button or Alt+F4) closes immediately when the document is saved. Unsaved edits ask before they are discarded.
 
 ## Windows downloads
 
