@@ -37,13 +37,38 @@ jobs:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
           releaseName: ${{ github.ref_type == 'tag' && format('Markdown Editor {0}', github.ref_name) || '' }}
           releaseBody: |
-            Unsigned Windows installers for Markdown Editor.
+            Unsigned Windows builds for Markdown Editor.
 
-            The NSIS setup (`.exe`) and WiX installer (`.msi`) are attached.
-            They are not code-signed. Windows SmartScreen may warn until a certificate is added.
+            - NSIS setup (`.exe`) and WiX installer (`.msi`) install the app.
+            - `*-portable.zip` does not install anything. Unzip it and run `Markdown Editor.exe`.
+
+            These files are not code-signed. Windows SmartScreen may warn until a certificate is added.
+            The portable zip does not install WebView2. Windows 11 already includes that runtime.
           releaseDraft: false
           prerelease: false
           args: --bundles nsis,msi
           uploadWorkflowArtifacts: true
           uploadUpdaterJson: false
           uploadUpdaterSignatures: false
+
+      - name: Package portable Windows zip
+        id: portable
+        shell: pwsh
+        run: |
+          $zip = (node scripts/package-windows-portable.mjs).Trim()
+          if (-not (Test-Path -LiteralPath $zip)) { throw "Portable zip was not created: $zip" }
+          "zip=$zip" >> $env:GITHUB_OUTPUT
+
+      - name: Upload portable zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-x64-portable
+          path: ${{ steps.portable.outputs.zip }}
+          if-no-files-found: error
+
+      - name: Attach portable zip to the GitHub Release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: gh release upload "${{ github.ref_name }}" "${{ steps.portable.outputs.zip }}" --clobber
