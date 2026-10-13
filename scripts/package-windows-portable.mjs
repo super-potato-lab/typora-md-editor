@@ -34,31 +34,28 @@ const RUNTIME_DLLS = new Set(
 
 const ARCH = { x64: "x64", arm64: "arm64", ia32: "x86" };
 
+const HOST_TRIPLES = [
+  "x86_64-pc-windows-msvc",
+  "aarch64-pc-windows-msvc",
+  "i686-pc-windows-msvc",
+];
+
 export async function packagePortable({
   releaseDir,
   configPath,
   outPath,
   arch = process.arch,
+  projectRoot = process.cwd(),
+  cargoTargetDir = process.env.CARGO_TARGET_DIR,
 } = {}) {
-  const root = path.resolve(releaseDir ?? path.join("src-tauri", "target", "release"));
-  const configFile = path.resolve(configPath ?? path.join("src-tauri", "tauri.conf.json"));
-  const config = JSON.parse(await readFile(configFile, "utf8"));
-  const productName = config.productName;
-  const version = config.version;
-  if (!productName || !version) {
-    throw new Error(`${configFile} is missing productName or version`);
-  }
-
-  const exeName = `${productName}.exe`;
-  const exePath = path.join(root, exeName);
-  try {
-    const exeStat = await stat(exePath);
-    if (!exeStat.isFile()) throw new Error("not a file");
-  } catch {
-    throw new Error(
-      `Portable build needs ${exePath}. Run \`npm run tauri build\` on Windows first.`,
-    );
-  }
+  const located = await locateWindowsExecutable({
+    projectRoot,
+    releaseDir,
+    configPath,
+    cargoTargetDir,
+  });
+  const { productName, version, exePath, exeName } = located;
+  const root = located.releaseDir;
 
   const folder = productName;
   const files = [{ source: exePath, name: `${folder}/${exeName}` }];
@@ -79,7 +76,7 @@ export async function packagePortable({
   files.push({
     source: null,
     name: `${folder}/README.txt`,
-    data: Buffer.from(portableReadme(productName), "utf8"),
+    data: Buffer.from(portableReadme(productName, exeName), "utf8"),
   });
 
   const bundleArch = ARCH[arch] ?? arch;
@@ -91,11 +88,133 @@ export async function packagePortable({
   return path.resolve(destination);
 }
 
-function portableReadme(productName) {
+/**
+ * Tauri writes `markdown-editor.exe` (the Cargo package name) into
+ * `src-tauri/target/release`, not `Markdown Editor.exe` (productName).
+ * A `--target` build nests that folder under the triple. NSIS/MSI outputs
+ * stay in `bundle/` and are not the portable executable.
+ */
+export async function locateWindowsExecutable({
+  projectRoot = process.cwd(),
+  releaseDir,
+  configPath,
+  cargoTargetDir = process.env.CARGO_TARGET_DIR,
+} = {}) {
+  const configFile = path.resolve(projectRoot, configPath ?? path.join("src-tauri", "tauri.conf.json"));
+  const config = JSON.parse(await readFile(configFile, "utf8"));
+  const productName = config.productName;
+  const version = config.version;
+  if (!productName || !version) {
+    throw new Error(`${configFile} is missing productName or version`);
+  }
+
+  const packageName = await readCargoPackageName(path.join(path.dirname(configFile), "Cargo.toml"));
+  const names = unique(
+    [exeFileName(config.mainBinaryName), exeFileName(packageName), exeFileName(productName)].filter(
+      Boolean,
+    ),
+  );
+  const dirs = releaseDirectories({ projectRoot, releaseDir, cargoTargetDir });
+
+  for (const dir of dirs) {
+    for (const name of names) {
+      const candidate = path.join(dir, name);
+      if (await isFile(candidate)) {
+        return { exePath: candidate, exeName: name, releaseDir: dir, productName, version };
+      }
+    }
+    const loose = await loneReleaseExe(dir);
+    if (loose) {
+      return {
+        exePath: loose,
+        exeName: path.basename(loose),
+        releaseDir: dir,
+        productName,
+        version,
+      };
+    }
+  }
+
+  const lookedFor = names.length > 0 ? names.join(", ") : "a release .exe";
+  throw new Error(
+    [
+      "Portable build could not find the Windows executable.",
+      `Looked for ${lookedFor} in:`,
+      ...dirs.map((dir) => `- ${dir}`),
+      "Run `npm run tauri build` on Windows first.",
+    ].join("\n"),
+  );
+}
+
+function releaseDirectories({ projectRoot, releaseDir, cargoTargetDir }) {
+  if (releaseDir) return [path.resolve(releaseDir)];
+  const roots = [];
+  if (cargoTargetDir) roots.push(path.resolve(cargoTargetDir));
+  roots.push(path.resolve(projectRoot, "src-tauri", "target"));
+  roots.push(path.resolve(projectRoot, "target"));
+  const dirs = [];
+  for (const root of roots) {
+    dirs.push(path.join(root, "release"));
+    for (const triple of HOST_TRIPLES) {
+      dirs.push(path.join(root, triple, "release"));
+    }
+    dirs.push(path.join(root, "release", "bundle", "nsis"));
+    for (const triple of HOST_TRIPLES) {
+      dirs.push(path.join(root, triple, "release", "bundle", "nsis"));
+    }
+  }
+  return unique(dirs);
+}
+
+function exeFileName(name) {
+  if (typeof name !== "string" || !name.trim()) return null;
+  const trimmed = name.trim();
+  return trimmed.toLowerCase().endsWith(".exe") ? trimmed : `${trimmed}.exe`;
+}
+
+async function readCargoPackageName(cargoTomlPath) {
+  let text;
+  try {
+    text = await readFile(cargoTomlPath, "utf8");
+  } catch (error) {
+    if (error && error.code === "ENOENT") return null;
+    throw error;
+  }
+  const section = text.split(/\n(?=\[)/).find((part) => part.startsWith("[package]"));
+  const match = section?.match(/^\s*name\s*=\s*"([^"]+)"/m);
+  return match?.[1] ?? null;
+}
+
+async function loneReleaseExe(directory) {
+  let entries;
+  try {
+    entries = await readdir(directory, { withFileTypes: true });
+  } catch (error) {
+    if (error && error.code === "ENOENT") return null;
+    throw error;
+  }
+  const exes = entries
+    .filter((entry) => entry.isFile() && isAppExe(entry.name))
+    .map((entry) => path.join(directory, entry.name));
+  return exes.length === 1 ? exes[0] : null;
+}
+
+function isAppExe(name) {
+  const lower = name.toLowerCase();
+  if (!lower.endsWith(".exe")) return false;
+  if (lower.endsWith("-setup.exe") || lower === "uninstall.exe") return false;
+  return true;
+}
+
+function unique(values) {
+  return [...new Set(values)];
+}
+
+function portableReadme(productName, exeName) {
   return [
     `${productName} (portable)`,
     "",
-    `Unzip this folder and run "${productName}.exe". Nothing is installed.`,
+    `Unzip this folder and run "${exeName}". Nothing is installed.`,
     "Windows 10 or 11 with the WebView2 runtime is required. Windows 11 includes it.",
     "This build is unsigned, so SmartScreen may warn before it starts.",
     "Settings stay in your user profile, the same place as an installed copy.",
@@ -105,6 +224,14 @@ function portableReadme(productName) {
 
 function slug(productName) {
   return productName.trim().replace(/\s+/g, "-");
+}
+
+async function isFile(file) {
+  try {
+    return (await stat(file)).isFile();
+  } catch {
+    return false;
+  }
 }
 
 async function isDirectory(directory) {

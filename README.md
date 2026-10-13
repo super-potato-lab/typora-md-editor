@@ -59,13 +59,13 @@ Closing the window asks before discarding unsaved edits.
 
 GitHub Actions builds **unsigned Windows artifacts only**: an NSIS setup, an MSI installer, and a portable zip. Linux and macOS bundles are not produced in CI.
 
-Tauri 2.12 has no portable bundle target (`nsis` and `msi` are the Windows formats). The portable zip is the release executable those installers copy to disk, plus `WebView2Loader.dll` or Visual C++ runtime DLLs when the build actually produced them, and a `resources/` folder when the app bundles resources. [`.github/workflows/release.yml`](.github/workflows/release.yml) runs `tauri-apps/tauri-action@v1` on `windows-latest` with `--bundles nsis,msi`, then `scripts/package-windows-portable.mjs`.
+Tauri 2.12 has no portable bundle target (`nsis` and `msi` are the Windows formats). The portable zip is the release executable those installers copy to disk (`markdown-editor.exe`, the Cargo package name), plus `WebView2Loader.dll` or Visual C++ runtime DLLs when the build actually produced them, and a `resources/` folder when the app bundles resources. [`.github/workflows/release.yml`](.github/workflows/release.yml) runs `tauri-apps/tauri-action@v1` on `windows-latest` with `--bundles nsis,msi`, then `scripts/package-windows-portable.mjs`.
 
 | Download | What you do | What it changes on the PC |
 | --- | --- | --- |
 | `*-setup.exe` (NSIS) | Run the setup | Installs the app, Start menu shortcut, uninstaller. Can download the WebView2 bootstrapper if that runtime is missing. |
 | `*.msi` (WiX) | Run the installer | Same kind of installed app, in the Windows Installer format. |
-| `*-portable.zip` | Unzip and run `Markdown Editor.exe` | No setup, no Start menu entry, no uninstaller. Delete the folder to remove the program files. Does not install WebView2. |
+| `*-portable.zip` | Unzip and run `markdown-editor.exe` | No setup, no Start menu entry, no uninstaller. Delete the folder to remove the program files. Does not install WebView2. |
 
 Windows 11 already includes WebView2. On Windows 10, install that runtime before using the portable zip. The portable copy is the same executable as the installers, so settings stay in your user profile rather than in the unzipped folder. Both are unsigned, so SmartScreen may warn.
 
