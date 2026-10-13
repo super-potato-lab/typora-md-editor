@@ -2,6 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "re
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import { WELCOME_MARKDOWN } from "./welcome";
 import {
+  activeHeadingPos,
   collectOutline,
   collectOutlineFromMarkdown,
   documentStats,
@@ -62,6 +63,7 @@ interface MarkdownEditorProps {
   onDirtyChange: (dirty: boolean) => void;
   onDocumentChange: (outline: OutlineItem[], stats: DocStats) => void;
   onMarksChange: (marks: { bold: boolean; italic: boolean; code: boolean }) => void;
+  onActiveHeading: (pos: number | null) => void;
   onError: (message: string) => void;
 }
 
@@ -103,14 +105,65 @@ function extensionFor(type: string): string {
   }
 }
 
+function lineHeightOf(el: HTMLElement): number {
+  const parsed = Number.parseFloat(getComputedStyle(el).lineHeight);
+  return Number.isFinite(parsed) ? parsed : 22;
+}
+
 function revealOffset(textarea: HTMLTextAreaElement, offset: number) {
-  const style = getComputedStyle(textarea);
-  const lineHeight = Number.parseFloat(style.lineHeight) || 22;
+  const lineHeight = lineHeightOf(textarea);
   const line = textarea.value.slice(0, offset).split("\n").length;
   const top = Math.max(0, (line - 2) * lineHeight);
   if (top < textarea.scrollTop || top > textarea.scrollTop + textarea.clientHeight - lineHeight) {
     textarea.scrollTop = top;
   }
+}
+
+function offsetFromTextareaScroll(textarea: HTMLTextAreaElement): number {
+  const lineHeight = lineHeightOf(textarea);
+  const line = Math.max(0, Math.floor((textarea.scrollTop + 8) / lineHeight));
+  const lines = textarea.value.split("\n");
+  let offset = 0;
+  for (let index = 0; index < line && index < lines.length; index += 1) {
+    offset += (lines[index]?.length ?? 0) + 1;
+  }
+  return offset;
+}
+
+function textareaCaretVisible(textarea: HTMLTextAreaElement): boolean {
+  const lineHeight = lineHeightOf(textarea);
+  const line = textarea.value.slice(0, textarea.selectionStart).split("\n").length - 1;
+  const top = line * lineHeight;
+  return top >= textarea.scrollTop - 2 && top <= textarea.scrollTop + textarea.clientHeight - lineHeight;
+}
+
+function selectionVisible(editor: Editor, scrollEl: HTMLElement): boolean {
+  try {
+    const coords = editor.view.coordsAtPos(editor.state.selection.from);
+    const box = scrollEl.getBoundingClientRect();
+    return coords.bottom > box.top + 4 && coords.top < box.bottom - 4;
+  } catch {
+    return false;
+  }
+}
+
+function headingAtScrollEdge(editor: Editor, scrollEl: HTMLElement, items: OutlineItem[]): number | null {
+  if (items.length === 0) return null;
+  const box = scrollEl.getBoundingClientRect();
+  const edge = box.top + Math.min(96, Math.max(32, box.height * 0.2));
+  let current: number | null = null;
+  for (const item of items) {
+    const dom = editor.view.nodeDOM(item.pos);
+    if (!(dom instanceof HTMLElement)) continue;
+    if (dom.getBoundingClientRect().top <= edge) current = item.pos;
+    else break;
+  }
+  if (current != null) return current;
+  const first = editor.view.nodeDOM(items[0].pos);
+  if (first instanceof HTMLElement && first.getBoundingClientRect().top < box.bottom) {
+    return items[0].pos;
+  }
+  return null;
 }
 
 function scrollToHash(root: HTMLElement, href: string): boolean {
@@ -128,7 +181,10 @@ function scrollToHash(root: HTMLElement, href: string): boolean {
 }
 
 export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
-  function MarkdownEditor({ mode, onDirtyChange, onDocumentChange, onMarksChange, onError }, ref) {
+  function MarkdownEditor(
+    { mode, onDirtyChange, onDocumentChange, onMarksChange, onActiveHeading, onError },
+    ref,
+  ) {
     const { locale } = useI18n();
     const placeholderRef = useRef(t("editor.placeholder"));
     placeholderRef.current = t("editor.placeholder");
@@ -136,7 +192,11 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     const onDirtyRef = useRef(onDirtyChange);
     const onDocumentRef = useRef(onDocumentChange);
     const onMarksRef = useRef(onMarksChange);
+    const onActiveRef = useRef(onActiveHeading);
     const onErrorRef = useRef(onError);
+    const lastActiveRef = useRef<number | null | undefined>(undefined);
+    const pinnedPosRef = useRef<number | null>(null);
+    const pinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const documentPathRef = useRef<string | null>(null);
     const insertFilesRef = useRef<(files: File[], pos?: number) => Promise<void>>(async () => {});
     const findIndexRef = useRef(0);
@@ -152,7 +212,27 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     onDirtyRef.current = onDirtyChange;
     onDocumentRef.current = onDocumentChange;
     onMarksRef.current = onMarksChange;
+    onActiveRef.current = onActiveHeading;
     onErrorRef.current = onError;
+
+    const reportActive = (pos: number | null) => {
+      if (lastActiveRef.current === pos) return;
+      lastActiveRef.current = pos;
+      onActiveRef.current(pos);
+    };
+
+    const pinHeading = (pos: number) => {
+      pinnedPosRef.current = pos;
+      if (pinTimerRef.current != null) clearTimeout(pinTimerRef.current);
+      pinTimerRef.current = setTimeout(() => {
+        if (pinnedPosRef.current === pos) pinnedPosRef.current = null;
+        pinTimerRef.current = null;
+      }, 800);
+    };
+
+    const syncFromCaret = (current: Editor) => {
+      reportActive(activeHeadingPos(collectOutline(current.state.doc), current.state.selection.from));
+    };
 
     const publish = (current: Editor) => {
       onDocumentRef.current(collectOutline(current.state.doc), documentStats(current.getText()));
@@ -242,13 +322,19 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         setSourceText(markdown);
         baselineRef.current = canonicalMarkdown(markdown);
         onDirtyRef.current(false);
-        if (modeRef.current === "source") publishSource(markdown);
-        else publish(created);
+        if (modeRef.current === "source") {
+          publishSource(markdown);
+          reportActive(activeHeadingPos(collectOutlineFromMarkdown(markdown), 0));
+        } else {
+          publish(created);
+          syncFromCaret(created);
+        }
       },
       onUpdate: ({ editor: updated }) => {
         if (modeRef.current === "source") return;
         onDirtyRef.current(canonicalMarkdown(editorMarkdown(updated)) !== baselineRef.current);
         publish(updated);
+        syncFromCaret(updated);
       },
       onSelectionUpdate: ({ editor: updated }) => {
         if (modeRef.current === "source") return;
@@ -257,6 +343,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           italic: updated.isActive("italic"),
           code: updated.isActive("code"),
         });
+        syncFromCaret(updated);
       },
     });
 
@@ -289,9 +376,76 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         findIndexRef.current = 0;
         onDirtyRef.current(canonicalMarkdown(editorMarkdown(editor)) !== baselineRef.current);
         publish(editor);
+        syncFromCaret(editor);
         editor.commands.focus("end");
       }
     }, [mode, editor]);
+
+    useEffect(() => {
+      if (!editor || mode !== "wysiwyg") return;
+      const scrollEl = editor.view.dom.closest(".editor-scroll");
+      if (!(scrollEl instanceof HTMLElement)) return;
+      let frame = 0;
+      const update = () => {
+        frame = 0;
+        if (editor.isDestroyed || modeRef.current !== "wysiwyg") return;
+        const pinned = pinnedPosRef.current;
+        if (pinned != null) {
+          const dom = editor.view.nodeDOM(pinned);
+          if (!(dom instanceof HTMLElement)) return;
+          const top = dom.getBoundingClientRect().top;
+          const box = scrollEl.getBoundingClientRect();
+          if (Math.abs(top - box.top) >= 56) return;
+          pinnedPosRef.current = null;
+        }
+        const items = collectOutline(editor.state.doc);
+        if (selectionVisible(editor, scrollEl)) {
+          reportActive(activeHeadingPos(items, editor.state.selection.from));
+          return;
+        }
+        reportActive(headingAtScrollEdge(editor, scrollEl, items));
+      };
+      const onScroll = () => {
+        if (frame) return;
+        frame = requestAnimationFrame(update);
+      };
+      update();
+      scrollEl.addEventListener("scroll", onScroll, { passive: true });
+      return () => {
+        scrollEl.removeEventListener("scroll", onScroll);
+        if (frame) cancelAnimationFrame(frame);
+      };
+    }, [editor, mode]);
+
+    useEffect(() => {
+      if (mode !== "source") return;
+      const field = sourceEl.current;
+      if (!field) return;
+      const update = () => {
+        if (modeRef.current !== "source") return;
+        const pinned = pinnedPosRef.current;
+        if (pinned != null) {
+          const lineHeight = lineHeightOf(field);
+          const line = field.value.slice(0, pinned).split("\n").length - 1;
+          const top = line * lineHeight;
+          const visible = top >= field.scrollTop - 4 && top <= field.scrollTop + field.clientHeight - lineHeight;
+          if (!visible) return;
+          pinnedPosRef.current = null;
+        }
+        const items = collectOutlineFromMarkdown(sourceRef.current);
+        const offset = textareaCaretVisible(field) ? field.selectionStart : offsetFromTextareaScroll(field);
+        reportActive(activeHeadingPos(items, offset));
+      };
+      update();
+      field.addEventListener("keyup", update);
+      field.addEventListener("click", update);
+      field.addEventListener("scroll", update);
+      return () => {
+        field.removeEventListener("keyup", update);
+        field.removeEventListener("click", update);
+        field.removeEventListener("scroll", update);
+      };
+    }, [mode, sourceText]);
 
     useEffect(() => {
       const range = pendingSelection.current;
@@ -303,6 +457,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       const to = Math.min(range.to, field.value.length);
       field.setSelectionRange(from, to);
       revealOffset(field, from);
+      reportActive(activeHeadingPos(collectOutlineFromMarkdown(field.value), from));
     }, [sourceText, selectionTick, mode]);
 
     const insertSource = (snippet: string) => {
@@ -433,17 +588,21 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         },
         scrollToOutline: (pos: number) => {
           if (modeRef.current === "source") {
+            pinHeading(pos);
             pendingSelection.current = { from: pos, to: pos };
             setSelectionTick((value) => value + 1);
+            reportActive(activeHeadingPos(collectOutlineFromMarkdown(sourceRef.current), pos));
             return;
           }
           if (!editor) return;
+          pinHeading(pos);
           const dom = editor.view.nodeDOM(pos);
           if (dom instanceof HTMLElement) {
             dom.scrollIntoView({ block: "start", behavior: "smooth" });
           }
           const target = Math.min(pos + 1, editor.state.doc.content.size);
           editor.chain().setTextSelection(target).focus().run();
+          reportActive(activeHeadingPos(collectOutline(editor.state.doc), target));
         },
         toggleBold: () => {
           if (modeRef.current === "source") {

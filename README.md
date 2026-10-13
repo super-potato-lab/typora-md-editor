@@ -65,9 +65,9 @@ Other scripts:
 - **Format → Footnote** inserts `[^1]` at the cursor and a matching `[^1]: ` definition at the end. The definition stays editable. Click the superscript to jump to it.
 - **Format → Table of Contents** inserts a linked list built from the current headings. Heading links scroll to those headings.
 - **View → WYSIWYG / Source** (`Ctrl/Cmd+\`), or the toolbar switch, toggles the TipTap editor and a raw Markdown editor. Edits in either view are the text you save. Switching copies the current text into the other view.
-- **View → Outline** shows or hides the heading list. Click a heading to scroll to it. The same sidebar lists recent files.
+- **View → Outline** shows or hides the sidebar. **大纲 / Outline** lists headings (the current one is highlighted; click to jump). **文件 / Files** lists recent files.
 - **Theme** switches the document skin. The choice is stored in `localStorage`.
-- The window title shows the full path and a dirty marker. The status bar shows the word count, character count, and path.
+- The window title shows the full path and a dirty marker. The status bar has a sidebar toggle, the word count, the character count, and the path.
 
 Closing the window (the title-bar button or Alt+F4) closes immediately when the document is saved. Unsaved edits ask before they are discarded.
 

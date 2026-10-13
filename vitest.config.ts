@@ -11,6 +11,7 @@ export default defineConfig({
       "src/editor/findReplace.test.ts",
       "src/editor/loadDocument.test.ts",
       "src/editor/codeHighlight.test.ts",
+      "src/editor/outline.test.ts",
       "src/saveSession.test.ts",
     ],
   },

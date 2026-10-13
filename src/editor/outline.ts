@@ -48,8 +48,29 @@ export function collectOutlineFromMarkdown(markdown: string): OutlineItem[] {
   return items;
 }
 
+/** Heading that contains `caret`, assuming `items` are in document order. */
+export function activeHeadingPos(items: OutlineItem[], caret: number): number | null {
+  let active: number | null = null;
+  for (const item of items) {
+    if (item.pos <= caret) active = item.pos;
+    else break;
+  }
+  return active;
+}
+
+/**
+ * Simple mixed Chinese/English count: each Han character is a word, and the
+ * remaining letters and numbers are split on whitespace.
+ */
 export function documentStats(text: string): DocStats {
   const trimmed = text.trim();
-  const words = trimmed ? trimmed.split(/\s+/u).length : 0;
+  if (!trimmed) return { words: 0, chars: text.length };
+  let words = 0;
+  const rest = trimmed.replace(/\p{Script=Han}+/gu, (run) => {
+    words += run.length;
+    return " ";
+  });
+  const tokens = rest.replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  if (tokens) words += tokens.split(/\s+/u).length;
   return { words, chars: text.length };
 }
