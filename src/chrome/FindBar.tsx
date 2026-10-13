@@ -1,4 +1,5 @@
 import { useEffect, type RefObject } from "react";
+import { useI18n } from "../i18n";
 
 interface FindBarProps {
   query: string;
@@ -39,6 +40,7 @@ export function FindBar({
   onReplaceAll,
   onClose,
 }: FindBarProps) {
+  const { t } = useI18n();
   useEffect(() => {
     const node = focusReplace ? replaceInputRef.current : findInputRef.current;
     node?.focus();
@@ -68,15 +70,15 @@ export function FindBar({
         ref={findInputRef}
         value={query}
         onChange={(event) => onQuery(event.target.value)}
-        placeholder="Find"
-        aria-label="Find"
+        placeholder={t("find.placeholder")}
+        aria-label={t("find.placeholder")}
       />
       <input
         ref={replaceInputRef}
         value={replacement}
         onChange={(event) => onReplacement(event.target.value)}
-        placeholder="Replace"
-        aria-label="Replace"
+        placeholder={t("find.replace")}
+        aria-label={t("find.replace")}
       />
       <label className="find-case">
         <input
@@ -84,21 +86,21 @@ export function FindBar({
           checked={caseSensitive}
           onChange={(event) => onCase(event.target.checked)}
         />
-        Match case
+        {t("find.matchCase")}
       </label>
-      <span className="find-count">{count ? `${active} / ${count}` : "No matches"}</span>
+      <span className="find-count">{count ? `${active} / ${count}` : t("find.noMatches")}</span>
       <button type="button" onClick={onPrev}>
-        Prev
+        {t("find.prev")}
       </button>
-      <button type="submit">Next</button>
+      <button type="submit">{t("find.next")}</button>
       <button type="button" onClick={onReplace}>
-        Replace
+        {t("find.replaceAction")}
       </button>
       <button type="button" onClick={onReplaceAll}>
-        All
+        {t("find.all")}
       </button>
       <button type="button" onClick={onClose}>
-        Close
+        {t("find.close")}
       </button>
     </form>
   );

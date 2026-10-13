@@ -16,7 +16,7 @@ export function collectOutline(doc: ProseNode): OutlineItem[] {
   doc.descendants((node, pos) => {
     if (node.type.name !== "heading") return;
     const level = Number(node.attrs.level) || 1;
-    const text = node.textContent.trim() || "Untitled";
+    const text = node.textContent.trim();
     items.push({ pos, level, text });
   });
   return items;

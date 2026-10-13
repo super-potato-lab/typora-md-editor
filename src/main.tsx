@@ -1,10 +1,12 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { applySavedLocale } from "./i18n";
 import { applyTheme, readSavedTheme } from "./themes";
 import "./styles/chrome.css";
 import "./styles/content.css";
 
+applySavedLocale();
 applyTheme(readSavedTheme());
 
 const root = document.getElementById("root");

@@ -695,6 +695,12 @@ fn html_src_range(tag: &str) -> Option<(usize, usize)> {
     None
 }
 
+fn dialog_label(value: Option<String>, fallback: &str) -> String {
+    value
+        .filter(|text| !text.trim().is_empty())
+        .unwrap_or_else(|| fallback.to_string())
+}
+
 fn read_attr_value(tag: &str, index: usize) -> Option<(usize, usize)> {
     let bytes = tag.as_bytes();
     if index >= bytes.len() {
@@ -725,12 +731,14 @@ fn read_attr_value(tag: &str, index: usize) -> Option<(usize, usize)> {
 async fn open_markdown(
     app: AppHandle,
     window: WebviewWindow,
+    title: Option<String>,
+    filter_name: Option<String>,
 ) -> Result<Option<OpenedFile>, String> {
     let picked = app
         .dialog()
         .file()
-        .add_filter("Markdown", &["md", "markdown"])
-        .set_title("Open Markdown")
+        .add_filter(dialog_label(filter_name, "Markdown"), &["md", "markdown"])
+        .set_title(dialog_label(title, "Open Markdown"))
         .set_parent(&window)
         .blocking_pick_file();
 
@@ -757,12 +765,14 @@ async fn save_markdown_as(
     content: String,
     suggested_name: Option<String>,
     source_path: Option<String>,
+    title: Option<String>,
+    filter_name: Option<String>,
 ) -> Result<Option<SavedAs>, String> {
     let mut dialog = app
         .dialog()
         .file()
-        .add_filter("Markdown", &["md", "markdown"])
-        .set_title("Save Markdown")
+        .add_filter(dialog_label(filter_name, "Markdown"), &["md", "markdown"])
+        .set_title(dialog_label(title, "Save Markdown"))
         .set_parent(&window);
 
     if let Some(name) = suggested_name {
@@ -793,12 +803,14 @@ async fn export_html(
     html: String,
     suggested_name: Option<String>,
     directory: Option<String>,
+    title: Option<String>,
+    filter_name: Option<String>,
 ) -> Result<Option<String>, String> {
     let mut dialog = app
         .dialog()
         .file()
-        .add_filter("HTML", &["html"])
-        .set_title("Export HTML")
+        .add_filter(dialog_label(filter_name, "HTML"), &["html"])
+        .set_title(dialog_label(title, "Export HTML"))
         .set_parent(&window);
 
     if let Some(name) = suggested_name {
@@ -838,12 +850,17 @@ async fn pick_and_save_image(
     app: AppHandle,
     window: WebviewWindow,
     document_path: String,
+    title: Option<String>,
+    filter_name: Option<String>,
 ) -> Result<Option<SavedImage>, String> {
     let picked = app
         .dialog()
         .file()
-        .add_filter("Images", &["png", "jpg", "jpeg", "gif", "webp", "svg"])
-        .set_title("Insert Image")
+        .add_filter(
+            dialog_label(filter_name, "Images"),
+            &["png", "jpg", "jpeg", "gif", "webp", "svg"],
+        )
+        .set_title(dialog_label(title, "Insert Image"))
         .set_parent(&window)
         .blocking_pick_file();
     let Some(picked) = picked else {
@@ -878,6 +895,16 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dialog_label_prefers_frontend_copy() {
+        assert_eq!(
+            dialog_label(Some("打开 Markdown".into()), "Open Markdown"),
+            "打开 Markdown"
+        );
+        assert_eq!(dialog_label(None, "Open Markdown"), "Open Markdown");
+        assert_eq!(dialog_label(Some("  ".into()), "Open Markdown"), "Open Markdown");
+    }
 
     #[test]
     fn adds_md_when_missing_extension() {

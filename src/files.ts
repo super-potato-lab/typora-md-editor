@@ -20,9 +20,17 @@ function assertDesktop(): void {
   }
 }
 
-export async function openMarkdownFile(): Promise<OpenedFile | null> {
+export interface DialogLabels {
+  title: string;
+  filter: string;
+}
+
+export async function openMarkdownFile(labels: DialogLabels): Promise<OpenedFile | null> {
   assertDesktop();
-  return invoke<OpenedFile | null>("open_markdown");
+  return invoke<OpenedFile | null>("open_markdown", {
+    title: labels.title,
+    filterName: labels.filter,
+  });
 }
 
 export async function readMarkdownFile(path: string): Promise<OpenedFile> {
@@ -44,12 +52,15 @@ export async function saveMarkdownFileAs(
   content: string,
   suggestedName: string,
   sourcePath: string | null,
+  labels: DialogLabels,
 ): Promise<SavedMarkdown | null> {
   assertDesktop();
   return invoke<SavedMarkdown | null>("save_markdown_as", {
     content,
     suggestedName,
     sourcePath,
+    title: labels.title,
+    filterName: labels.filter,
   });
 }
 
@@ -57,9 +68,16 @@ export async function exportHtmlFile(
   html: string,
   suggestedName: string,
   directory: string | null,
+  labels: DialogLabels,
 ): Promise<string | null> {
   assertDesktop();
-  return invoke<string | null>("export_html", { html, suggestedName, directory });
+  return invoke<string | null>("export_html", {
+    html,
+    suggestedName,
+    directory,
+    title: labels.title,
+    filterName: labels.filter,
+  });
 }
 
 export async function savePastedImage(
@@ -75,9 +93,16 @@ export async function savePastedImage(
   });
 }
 
-export async function pickAndSaveImage(documentPath: string): Promise<SavedImage | null> {
+export async function pickAndSaveImage(
+  documentPath: string,
+  labels: DialogLabels,
+): Promise<SavedImage | null> {
   assertDesktop();
-  return invoke<SavedImage | null>("pick_and_save_image", { documentPath });
+  return invoke<SavedImage | null>("pick_and_save_image", {
+    documentPath,
+    title: labels.title,
+    filterName: labels.filter,
+  });
 }
 
 export function errorMessage(err: unknown): string {
@@ -96,8 +121,12 @@ export function dirname(path: string): string {
   return index >= 0 ? path.slice(0, index) : "";
 }
 
-export function replaceExtension(path: string | null, extension: string): string {
-  const name = path ? basename(path) : "Untitled.md";
+export function replaceExtension(
+  path: string | null,
+  extension: string,
+  untitledName = "Untitled.md",
+): string {
+  const name = path ? basename(path) : untitledName;
   const dot = name.lastIndexOf(".");
   const stem = dot > 0 ? name.slice(0, dot) : name;
   return `${stem}.${extension}`;

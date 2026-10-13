@@ -7,7 +7,6 @@ import type { DocStats, OutlineItem } from "./editor/outline";
 import {
   basename,
   dirname,
-  errorMessage,
   exportHtmlFile,
   isTauri,
   openMarkdownFile,
@@ -16,6 +15,7 @@ import {
   saveMarkdownFile,
   saveMarkdownFileAs,
 } from "./files";
+import { localizeError, t, themeName, useI18n } from "./i18n";
 import { applyTheme, readSavedTheme, themes } from "./themes";
 import { forgetRecent, readRecent, rememberRecent, type RecentFile } from "./recent";
 import { DocumentDirProvider } from "./documentDir";
@@ -51,6 +51,19 @@ function readOutlineOpen(): boolean {
 }
 
 export function App() {
+  const { locale, setLocale } = useI18n();
+  const phrases = useRef({
+    discard: t("confirm.discard"),
+    title: t("app.name"),
+    ok: t("confirm.discardOk"),
+    cancel: t("confirm.cancel"),
+  });
+  phrases.current = {
+    discard: t("confirm.discard"),
+    title: t("app.name"),
+    ok: t("confirm.discardOk"),
+    cancel: t("confirm.cancel"),
+  };
   const editorRef = useRef<MarkdownEditorHandle>(null);
   const dirtyRef = useRef(false);
   const pathRef = useRef<string | null>(null);
@@ -84,14 +97,18 @@ export function App() {
   }, [path]);
 
   useEffect(() => {
-    const label = path ?? "Untitled";
-    const title = `${dirty ? "• " : ""}${label} — Markdown Editor`;
+    const label = path ?? t("doc.untitled");
+    const title = t("window.title", {
+      dirty: dirty ? "• " : "",
+      name: label,
+      app: t("app.name"),
+    });
     document.title = title;
     if (!isTauri()) return;
     void getCurrentWindow().setTitle(title).catch(() => {
       /* title is cosmetic */
     });
-  }, [path, dirty]);
+  }, [path, dirty, locale]);
 
   useEffect(() => {
     if (!isTauri()) return;
@@ -107,9 +124,11 @@ export function App() {
         const alreadyAsking = asking;
         if (dirtyRef.current && !alreadyAsking) asking = true;
         const outcome = await handleCloseRequest(event, dirtyRef.current, alreadyAsking, () =>
-          ask("Discard unsaved changes?", {
-            title: "Markdown Editor",
+          ask(phrases.current.discard, {
+            title: phrases.current.title,
             kind: "warning",
+            okLabel: phrases.current.ok,
+            cancelLabel: phrases.current.cancel,
           }),
         );
         if (outcome === "stay" && !alreadyAsking) asking = false;
@@ -141,13 +160,22 @@ export function App() {
       setFindQuery("");
       setFindCount(0);
       setFindActive(0);
-      note("info", "Opened");
+      note("info", t("status.opened"));
     },
     [note],
   );
 
-  const confirmDiscard = useCallback(() => {
-    return !dirtyRef.current || window.confirm("Discard unsaved changes?");
+  const confirmDiscard = useCallback(async () => {
+    if (!dirtyRef.current) return true;
+    if (isTauri()) {
+      return ask(t("confirm.discard"), {
+        title: t("app.name"),
+        kind: "warning",
+        okLabel: t("confirm.discardOk"),
+        cancelLabel: t("confirm.cancel"),
+      });
+    }
+    return window.confirm(t("confirm.discard"));
   }, []);
 
   const chooseTheme = useCallback((id: string) => {
@@ -155,26 +183,29 @@ export function App() {
   }, []);
 
   const openFile = useCallback(async () => {
-    if (!confirmDiscard()) return;
+    if (!(await confirmDiscard())) return;
     try {
-      const opened = await openMarkdownFile();
+      const opened = await openMarkdownFile({
+        title: t("dialog.openTitle"),
+        filter: t("dialog.filterMarkdown"),
+      });
       if (!opened) return;
       loadDocument(opened.path, opened.content);
     } catch (err) {
-      note("error", errorMessage(err));
+      note("error", localizeError(err));
     }
   }, [confirmDiscard, loadDocument, note]);
 
   const openRecent = useCallback(
     async (recentPath: string) => {
       if (recentPath === pathRef.current) return;
-      if (!confirmDiscard()) return;
+      if (!(await confirmDiscard())) return;
       try {
         const opened = await readMarkdownFile(recentPath);
         loadDocument(opened.path, opened.content);
       } catch (err) {
         setRecent(forgetRecent(recentPath));
-        note("error", errorMessage(err));
+        note("error", localizeError(err));
       }
     },
     [confirmDiscard, loadDocument, note],
@@ -183,8 +214,11 @@ export function App() {
   const saveAs = useCallback(async () => {
     try {
       const content = editorRef.current?.getMarkdown() ?? "";
-      const suggested = pathRef.current ? basename(pathRef.current) : "Untitled.md";
-      const saved = await saveMarkdownFileAs(content, suggested, pathRef.current);
+      const suggested = pathRef.current ? basename(pathRef.current) : t("doc.untitledFile");
+      const saved = await saveMarkdownFileAs(content, suggested, pathRef.current, {
+        title: t("dialog.saveTitle"),
+        filter: t("dialog.filterMarkdown"),
+      });
       if (!saved) return;
       if (saved.content !== content) {
         editorRef.current?.setMarkdown(saved.content);
@@ -193,9 +227,9 @@ export function App() {
       editorRef.current?.setDocumentPath(saved.path);
       editorRef.current?.markSaved();
       setRecent(rememberRecent(saved.path));
-      note("info", "Saved");
+      note("info", t("status.saved"));
     } catch (err) {
-      note("error", errorMessage(err));
+      note("error", localizeError(err));
     }
   }, [note]);
 
@@ -210,9 +244,9 @@ export function App() {
       await saveMarkdownFile(current, content);
       editorRef.current?.markSaved();
       setRecent(rememberRecent(current));
-      note("info", "Saved");
+      note("info", t("status.saved"));
     } catch (err) {
-      note("error", errorMessage(err));
+      note("error", localizeError(err));
     }
   }, [note, saveAs]);
 
@@ -242,11 +276,11 @@ export function App() {
 
   const exportHtml = useCallback(async () => {
     const html = buildExportHtml({
-      title: pathRef.current ? basename(pathRef.current) : "Untitled",
+      title: pathRef.current ? basename(pathRef.current) : t("doc.untitled"),
       bodyHtml: editorRef.current?.getHTML() ?? "",
       themeId: theme,
     });
-    const suggested = replaceExtension(pathRef.current, "html");
+    const suggested = replaceExtension(pathRef.current, "html", t("doc.untitledFile"));
     if (!isTauri()) {
       const blob = new Blob([html], { type: "text/html;charset=utf-8" });
       const url = URL.createObjectURL(blob);
@@ -255,15 +289,23 @@ export function App() {
       link.download = suggested;
       link.click();
       URL.revokeObjectURL(url);
-      note("info", "Downloaded HTML");
+      note("info", t("status.downloadedHtml"));
       return;
     }
     try {
-      const saved = await exportHtmlFile(html, suggested, pathRef.current ? dirname(pathRef.current) : null);
+      const saved = await exportHtmlFile(
+        html,
+        suggested,
+        pathRef.current ? dirname(pathRef.current) : null,
+        {
+          title: t("dialog.exportTitle"),
+          filter: t("dialog.filterHtml"),
+        },
+      );
       if (!saved) return;
-      note("info", "Exported HTML");
+      note("info", t("status.exportedHtml"));
     } catch (err) {
-      note("error", errorMessage(err));
+      note("error", localizeError(err));
     }
   }, [note, theme]);
 
@@ -271,26 +313,26 @@ export function App() {
     const current = pathRef.current;
     try {
       const html = buildPrintHtml({
-        title: current ? basename(current) : "Untitled",
+        title: current ? basename(current) : t("doc.untitled"),
         bodyHtml: editorRef.current?.getHTML() ?? "",
         themeId: theme,
         documentDir: current ? dirname(current) : null,
       });
-      note("info", "Choose Save as PDF in the print dialog.");
-      void printHtml(html).catch((err: unknown) => {
-        note("error", errorMessage(err));
+      note("info", t("status.printPdf"));
+      void printHtml(html, t("print.frameTitle")).catch((err: unknown) => {
+        note("error", localizeError(err));
       });
     } catch (err) {
-      note("error", errorMessage(err));
+      note("error", localizeError(err));
     }
   }, [note, theme]);
 
   const insertImage = useCallback(async () => {
     try {
       const inserted = await editorRef.current?.insertImageFromDialog();
-      if (inserted) note("info", "Inserted image");
+      if (inserted) note("info", t("status.insertedImage"));
     } catch (err) {
-      note("error", errorMessage(err));
+      note("error", localizeError(err));
     }
   }, [note]);
 
@@ -332,55 +374,68 @@ export function App() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [openFile, openFind, save, saveAs]);
 
-  const docName = path ? basename(path) : "Untitled";
-  const wordLabel = stats.words === 1 ? "1 word" : `${stats.words} words`;
+  const untitled = t("doc.untitled");
+  const docName = path ? basename(path) : untitled;
+  const wordLabel =
+    stats.words === 1 ? t("status.words.one") : t("status.words.other", { count: stats.words });
 
   return (
     <DocumentDirProvider value={path ? dirname(path) : null}>
       <div className="app">
         <header className="chrome">
-          <nav className="menus" aria-label="Editor">
-            <Menu label="File">
-              <MenuItem label="Open…" hint={shortcutLabel("O")} onSelect={() => void openFile()} />
-              <MenuItem label="Save" hint={shortcutLabel("S")} onSelect={() => void save()} />
-              <MenuItem label="Save As…" hint={shortcutLabel("⇧S")} onSelect={() => void saveAs()} />
+          <nav className="menus" aria-label={t("menu.editor")}>
+            <Menu label={t("menu.file")}>
+              <MenuItem label={t("file.open")} hint={shortcutLabel("O")} onSelect={() => void openFile()} />
+              <MenuItem label={t("file.save")} hint={shortcutLabel("S")} onSelect={() => void save()} />
+              <MenuItem label={t("file.saveAs")} hint={shortcutLabel("⇧S")} onSelect={() => void saveAs()} />
               <MenuSeparator />
-              <MenuItem label="Insert Image…" onSelect={() => void insertImage()} />
-              <MenuItem label="Export HTML…" onSelect={() => void exportHtml()} />
-              <MenuItem label="Export PDF…" onSelect={exportPdf} />
+              <MenuItem label={t("file.insertImage")} onSelect={() => void insertImage()} />
+              <MenuItem label={t("file.exportHtml")} onSelect={() => void exportHtml()} />
+              <MenuItem label={t("file.exportPdf")} onSelect={exportPdf} />
             </Menu>
-            <Menu label="Edit">
-              <MenuItem label="Find" hint={shortcutLabel("F")} onSelect={() => openFind(false)} />
-              <MenuItem label="Replace" hint={shortcutLabel("H")} onSelect={() => openFind(true)} />
+            <Menu label={t("menu.edit")}>
+              <MenuItem label={t("edit.find")} hint={shortcutLabel("F")} onSelect={() => openFind(false)} />
+              <MenuItem label={t("edit.replace")} hint={shortcutLabel("H")} onSelect={() => openFind(true)} />
             </Menu>
-            <Menu label="Format">
+            <Menu label={t("menu.format")}>
               <MenuItem
-                label="Bold"
+                label={t("format.bold")}
                 hint={shortcutLabel("B")}
                 checked={marks.bold}
                 onSelect={() => editorRef.current?.toggleBold()}
               />
               <MenuItem
-                label="Italic"
+                label={t("format.italic")}
                 hint={shortcutLabel("I")}
                 checked={marks.italic}
                 onSelect={() => editorRef.current?.toggleItalic()}
               />
               <MenuItem
-                label="Code"
+                label={t("format.code")}
                 hint={shortcutLabel("E")}
                 checked={marks.code}
                 onSelect={() => editorRef.current?.toggleCode()}
               />
             </Menu>
-            <Menu label="View">
-              <MenuItem label="Outline" checked={outlineOpen} onSelect={toggleOutline} />
+            <Menu label={t("menu.view")}>
+              <MenuItem label={t("view.outline")} checked={outlineOpen} onSelect={toggleOutline} />
+              <MenuSeparator />
+              <MenuItem
+                label={t("language.zhCN")}
+                checked={locale === "zh-CN"}
+                onSelect={() => setLocale("zh-CN")}
+              />
+              <MenuItem
+                label={t("language.en")}
+                checked={locale === "en"}
+                onSelect={() => setLocale("en")}
+              />
             </Menu>
-            <Menu label="Theme">
+            <Menu label={t("menu.theme")}>
               {themes.map((item) => (
                 <MenuItem
                   key={item.id}
-                  label={item.label}
+                  label={themeName(item.id, item.label)}
                   checked={item.id === theme}
                   onSelect={() => chooseTheme(item.id)}
                 />
@@ -393,7 +448,7 @@ export function App() {
                 {status.text}
               </span>
             )}
-            <span className="doc-name" title={path ?? "Untitled"}>
+            <span className="doc-name" title={path ?? untitled}>
               {dirty ? "• " : ""}
               {docName}
             </span>
@@ -492,15 +547,15 @@ export function App() {
                 setStats(nextStats);
               }}
               onMarksChange={setMarks}
-              onError={(message) => note("error", message)}
+              onError={(message) => note("error", localizeError(message))}
             />
           </div>
         </div>
         <footer className="statusbar">
           <span>{wordLabel}</span>
-          <span>{stats.chars} characters</span>
-          <span className="statusbar-path" title={path ?? "Untitled"}>
-            {path ?? "Untitled"}
+          <span>{t("status.chars", { count: stats.chars })}</span>
+          <span className="statusbar-path" title={path ?? untitled}>
+            {path ?? untitled}
           </span>
         </footer>
       </div>

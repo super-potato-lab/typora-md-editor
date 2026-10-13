@@ -1,4 +1,4 @@
-import { forwardRef, useImperativeHandle, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -18,6 +18,7 @@ import {
 } from "./find";
 import { PreviewImage } from "./PreviewImage";
 import { isTauri, pickAndSaveImage, savePastedImage } from "../files";
+import { t, useI18n } from "../i18n";
 
 export interface MarkdownEditorHandle {
   getMarkdown: () => string;
@@ -91,6 +92,9 @@ function extensionFor(type: string): string {
 
 export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorProps>(
   function MarkdownEditor({ onDirtyChange, onDocumentChange, onMarksChange, onError }, ref) {
+    const { locale } = useI18n();
+    const placeholderRef = useRef(t("editor.placeholder"));
+    placeholderRef.current = t("editor.placeholder");
     const baselineRef = useRef(canonical(WELCOME_MARKDOWN));
     const onDirtyRef = useRef(onDirtyChange);
     const onDocumentRef = useRef(onDocumentChange);
@@ -128,7 +132,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         TaskList,
         TaskItem.configure({ nested: true }),
         Placeholder.configure({
-          placeholder: "Start writing…",
+          placeholder: () => placeholderRef.current,
         }),
         Markdown,
         FindReplace,
@@ -138,7 +142,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
       editorProps: {
         attributes: {
           spellcheck: "true",
-          "aria-label": "Markdown document",
+          "aria-label": t("editor.aria"),
         },
         handlePaste: (_view, event) => {
           const files = imageFilesFrom(event.clipboardData);
@@ -179,6 +183,12 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         });
       },
     });
+
+    useEffect(() => {
+      if (!editor || editor.isDestroyed) return;
+      editor.view.dom.setAttribute("aria-label", t("editor.aria"));
+      editor.view.updateState(editor.view.state);
+    }, [editor, locale]);
 
     insertFilesRef.current = async (files: File[], pos?: number) => {
       if (!editor) return;
@@ -304,7 +314,10 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
           if (!editor) return false;
           const path = documentPathRef.current;
           if (!path) throw new Error("Save the document before inserting an image.");
-          const saved = await pickAndSaveImage(path);
+          const saved = await pickAndSaveImage(path, {
+            title: t("dialog.imageTitle"),
+            filter: t("dialog.filterImages"),
+          });
           if (!saved) return false;
           const markdown = `![${altFromRelative(saved.relativePath)}](${saved.relativePath})`;
           editor.chain().focus().insertContent(markdown, { contentType: "markdown" }).run();

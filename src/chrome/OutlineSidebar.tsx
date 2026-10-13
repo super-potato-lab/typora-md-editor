@@ -1,4 +1,5 @@
 import type { OutlineItem } from "../editor/outline";
+import { useI18n } from "../i18n";
 import { recentName, type RecentFile } from "../recent";
 
 interface OutlineSidebarProps {
@@ -16,13 +17,14 @@ export function OutlineSidebar({
   onJump,
   onOpenRecent,
 }: OutlineSidebarProps) {
+  const { t } = useI18n();
   return (
-    <aside className="sidebar" aria-label="Document">
-      <p className="sidebar-label">Outline</p>
+    <aside className="sidebar" aria-label={t("sidebar.document")}>
+      <p className="sidebar-label">{t("sidebar.outline")}</p>
       {outline.length === 0 ? (
-        <p className="sidebar-empty">No headings</p>
+        <p className="sidebar-empty">{t("sidebar.noHeadings")}</p>
       ) : (
-        <nav aria-label="Headings">
+        <nav aria-label={t("sidebar.headings")}>
           {outline.map((item) => (
             <button
               key={`${item.pos}-${item.text}`}
@@ -31,16 +33,16 @@ export function OutlineSidebar({
               style={{ paddingLeft: `${(item.level - 1) * 0.7 + 0.45}rem` }}
               onClick={() => onJump(item.pos)}
             >
-              {item.text}
+              {item.text || t("doc.untitled")}
             </button>
           ))}
         </nav>
       )}
-      <p className="sidebar-label recent-label">Recent</p>
+      <p className="sidebar-label recent-label">{t("sidebar.recent")}</p>
       {recent.length === 0 ? (
-        <p className="sidebar-empty">No recent files</p>
+        <p className="sidebar-empty">{t("sidebar.noRecent")}</p>
       ) : (
-        <nav aria-label="Recent files">
+        <nav aria-label={t("sidebar.recentFiles")}>
           {recent.map((item) => (
             <button
               key={item.path}
