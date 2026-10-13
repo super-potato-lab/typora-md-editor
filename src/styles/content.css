@@ -170,3 +170,21 @@
 #write ::selection {
   background: var(--select-bg, #b6d7ff);
 }
+
+#write .find-match {
+  background: var(--find-bg, #ffe08a);
+  border-radius: 2px;
+}
+
+#write .find-match.active {
+  background: var(--find-active-bg, #ffb020);
+}
+
+#write .image-block {
+  margin: 0.8em 0;
+}
+
+#write .image-block img {
+  max-width: 100%;
+  height: auto;
+}

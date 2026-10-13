@@ -136,10 +136,142 @@ button {
   white-space: nowrap;
 }
 
+.menu-separator {
+  height: 1px;
+  margin: 0.3rem 0.4rem;
+  background: var(--chrome-border);
+}
+
+.find-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.65rem;
+  background: var(--chrome-bg);
+  color: var(--chrome-text);
+  border-bottom: 1px solid var(--chrome-border);
+}
+
+.find-bar input[type="checkbox"] {
+  margin: 0;
+}
+
+.find-bar input:not([type="checkbox"]) {
+  font: inherit;
+  color: var(--text-color);
+  background: var(--bg-color);
+  border: 1px solid var(--chrome-border);
+  border-radius: 6px;
+  padding: 0.28rem 0.5rem;
+  min-width: 9rem;
+}
+
+.find-bar button {
+  padding: 0.28rem 0.55rem;
+  border: 1px solid var(--chrome-border);
+}
+
+.find-case {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: var(--muted-color);
+  font-size: 0.85rem;
+}
+
+.find-count {
+  color: var(--muted-color);
+  font-size: 0.85rem;
+  min-width: 5.5rem;
+}
+
+.workspace {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.sidebar {
+  width: 232px;
+  flex: none;
+  overflow: auto;
+  background: var(--chrome-bg);
+  color: var(--chrome-text);
+  border-right: 1px solid var(--chrome-border);
+  padding: 0.7rem 0.45rem 1rem;
+}
+
+.sidebar-label {
+  margin: 0.15rem 0.4rem 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted-color);
+}
+
+.recent-label {
+  margin-top: 1.1rem;
+}
+
+.sidebar-empty {
+  margin: 0.15rem 0.45rem 0.4rem;
+  color: var(--muted-color);
+  font-size: 0.86rem;
+}
+
+.outline-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.24rem 0.45rem;
+  border-radius: 5px;
+  color: var(--chrome-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.outline-item:hover,
+.outline-item.active {
+  background: var(--menu-hover);
+}
+
 .editor-scroll {
   flex: 1;
+  min-width: 0;
   overflow: auto;
   background: var(--bg-color);
+}
+
+.statusbar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 28px;
+  padding: 0 0.75rem;
+  background: var(--chrome-bg);
+  color: var(--muted-color);
+  border-top: 1px solid var(--chrome-border);
+  font-size: 0.78rem;
+}
+
+.statusbar-path {
+  margin-left: auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media print {
+  .chrome,
+  .find-bar,
+  .sidebar,
+  .statusbar {
+    display: none !important;
+  }
 }
 
 button:focus-visible {
