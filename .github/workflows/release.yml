@@ -1,4 +1,4 @@
-name: Windows release
+name: Desktop release
 
 on:
   push:
@@ -13,10 +13,12 @@ on:
         type: string
 
 jobs:
-  build:
+  windows:
     permissions:
       contents: write
     runs-on: windows-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -59,13 +61,20 @@ jobs:
           releaseName: ${{ steps.release.outputs.name }}
           releaseCommitish: ${{ github.sha }}
           releaseBody: |
-            Unsigned Windows builds for Markdown Editor.
+            Unsigned desktop builds for Markdown Editor. No signing secrets are used.
 
+            Windows:
             - NSIS setup (`.exe`) and WiX installer (`.msi`) install the app.
             - `*-portable.zip` does not install anything. Unzip it and run `markdown-editor.exe`.
 
-            These files are not code-signed. Windows SmartScreen may warn until a certificate is added.
+            These Windows files are not code-signed. Windows SmartScreen may warn until a certificate is added.
             The portable zip does not install WebView2. Windows 11 already includes that runtime.
+
+            Linux (x64, built on `ubuntu-latest`):
+            - `.deb` installs on Debian and Ubuntu. It uses the system WebKitGTK 4.1 libraries.
+            - `.AppImage` is one file. `chmod +x` it and run it. It bundles its own libraries and does not install through a package manager.
+
+            The Linux job attaches those two files to this same Release. They are unsigned. The AppImage is linked against the glibc on the GitHub `ubuntu-latest` image, so older distributions may be too old to run it. RPM packages are not built.
           releaseDraft: false
           prerelease: false
           args: --bundles nsis,msi
@@ -99,3 +108,103 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: gh release upload "${{ steps.release.outputs.tag }}" "${{ steps.portable.outputs.zip }}" --clobber
+
+  linux:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install Linux build dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            -o Dpkg::Options::=--force-confdef \
+            -o Dpkg::Options::=--force-confold \
+            build-essential \
+            curl \
+            wget \
+            file \
+            patchelf \
+            libssl-dev \
+            libxdo-dev \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+          # linuxdeploy is an AppImage. Ubuntu 24.04+ ships FUSE 2 as libfuse2t64.
+          sudo apt-get install -y libfuse2t64 || sudo apt-get install -y libfuse2
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build unsigned Linux bundles
+        id: tauri
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # linuxdeploy's bundled strip rejects RELR notes on newer glibc.
+          NO_STRIP: "1"
+          # Run linuxdeploy without mounting FUSE. The runner often has no /dev/fuse.
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        with:
+          # The Windows job creates the Release. This job only builds and
+          # uploads workflow artifacts; publish-linux attaches the files.
+          args: --bundles appimage,deb
+          uploadWorkflowArtifacts: true
+          uploadUpdaterJson: false
+          uploadUpdaterSignatures: false
+
+      - name: Stage deb and AppImage for the Release
+        env:
+          ARTIFACT_PATHS: ${{ steps.tauri.outputs.artifactPaths }}
+          LINUX_ASSET_DIR: linux-release-assets
+        run: node scripts/linux-release-assets.mjs
+
+      - name: Upload Linux bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x64-bundles
+          path: linux-release-assets/*
+          if-no-files-found: error
+
+  publish-linux:
+    name: Attach Linux bundles to the GitHub Release
+    needs: [windows, linux]
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Linux bundles
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-x64-bundles
+          path: linux-release-assets
+
+      - name: Attach deb and AppImage to the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(linux-release-assets/*)
+          if [ "${#files[@]}" -lt 2 ]; then
+            echo "Expected the .deb and the .AppImage in linux-release-assets." >&2
+            printf 'found: %s\n' "${files[@]:-(none)}" >&2
+            exit 1
+          fi
+          gh release upload "${{ needs.windows.outputs.tag }}" "${files[@]}" --clobber

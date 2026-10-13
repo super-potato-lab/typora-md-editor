@@ -1,5 +1,5 @@
 /**
- * Pick the Git tag for a Windows release.
+ * Pick the Git tag for a desktop release.
  *
  * A `v*` tag push uses that tag. A manual workflow_dispatch uses the Version
  * input, or `version` from tauri.conf.json, then package.json. `0.1.0` and
