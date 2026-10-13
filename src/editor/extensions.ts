@@ -1,6 +1,7 @@
 import Placeholder from "@tiptap/extension-placeholder";
 import type { Extensions } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
+import { TableKit } from "@tiptap/extension-table";
 import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
 import { Markdown } from "@tiptap/markdown";
@@ -24,6 +25,9 @@ export function createEditorExtensions(
       },
     }),
     HeadingAnchor,
+    // GFM tables. Without these nodes the markdown parser drops tables, and
+    // the next save writes the document back without them.
+    TableKit,
     PreviewImage,
     TaskList,
     TaskItem.configure({ nested: true }),

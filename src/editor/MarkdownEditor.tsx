@@ -11,8 +11,8 @@ import {
 import {
   clearFind,
   findInString,
-  replaceMatch,
-  replaceMatches,
+  replaceAllMatches,
+  replaceCurrentMatch,
   resolveMatchIndex,
   showFind,
   spliceMatches,
@@ -21,18 +21,20 @@ import {
 } from "./find";
 import { createEditorExtensions } from "./extensions";
 import { nextFootnoteId } from "./footnotes";
+import { loadMarkdownDocument } from "./loadDocument";
 import { MERMAID_TEMPLATE } from "./mermaid";
 import { editorMarkdown, setMarkdownDocument } from "./setMarkdownDocument";
 import { tableOfContentsMarkdown } from "./slug";
 import { isTauri, pickAndSaveImage, savePastedImage } from "../files";
 import { t, useI18n } from "../i18n";
+import { canonicalMarkdown, savedSnapshotStillCurrent, type SaveSnapshot } from "../saveSession";
 
 export type EditorMode = "wysiwyg" | "source";
 
 export interface MarkdownEditorHandle {
   getMarkdown: () => string;
   setMarkdown: (markdown: string) => void;
-  markSaved: () => void;
+  markSaved: (snapshot: SaveSnapshot) => void;
   focus: () => void;
   scrollToOutline: (pos: number) => void;
   toggleBold: () => void;
@@ -61,10 +63,6 @@ interface MarkdownEditorProps {
   onDocumentChange: (outline: OutlineItem[], stats: DocStats) => void;
   onMarksChange: (marks: { bold: boolean; italic: boolean; code: boolean }) => void;
   onError: (message: string) => void;
-}
-
-function canonical(markdown: string): string {
-  return markdown.replace(/\s+$/u, "");
 }
 
 function imageFilesFrom(data: DataTransfer | null): File[] {
@@ -134,7 +132,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     const { locale } = useI18n();
     const placeholderRef = useRef(t("editor.placeholder"));
     placeholderRef.current = t("editor.placeholder");
-    const baselineRef = useRef(canonical(WELCOME_MARKDOWN));
+    const baselineRef = useRef(canonicalMarkdown(WELCOME_MARKDOWN));
     const onDirtyRef = useRef(onDirtyChange);
     const onDocumentRef = useRef(onDocumentChange);
     const onMarksRef = useRef(onMarksChange);
@@ -173,7 +171,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
     const commitSource = (markdown: string, selection?: TextMatch) => {
       sourceRef.current = markdown;
       setSourceText(markdown);
-      onDirtyRef.current(canonical(markdown) !== baselineRef.current);
+      onDirtyRef.current(canonicalMarkdown(markdown) !== baselineRef.current);
       publishSource(markdown);
       if (selection) {
         pendingSelection.current = selection;
@@ -242,14 +240,14 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         const markdown = editorMarkdown(created);
         sourceRef.current = markdown;
         setSourceText(markdown);
-        baselineRef.current = canonical(markdown);
+        baselineRef.current = canonicalMarkdown(markdown);
         onDirtyRef.current(false);
         if (modeRef.current === "source") publishSource(markdown);
         else publish(created);
       },
       onUpdate: ({ editor: updated }) => {
         if (modeRef.current === "source") return;
-        onDirtyRef.current(canonical(editorMarkdown(updated)) !== baselineRef.current);
+        onDirtyRef.current(canonicalMarkdown(editorMarkdown(updated)) !== baselineRef.current);
         publish(updated);
       },
       onSelectionUpdate: ({ editor: updated }) => {
@@ -289,7 +287,7 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         clearFind(editor);
         findMatchesRef.current = [];
         findIndexRef.current = 0;
-        onDirtyRef.current(canonical(editorMarkdown(editor)) !== baselineRef.current);
+        onDirtyRef.current(canonicalMarkdown(editorMarkdown(editor)) !== baselineRef.current);
         publish(editor);
         editor.commands.focus("end");
       }
@@ -402,26 +400,28 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         getMarkdown: () => currentMarkdown(),
         setMarkdown: (markdown: string) => {
           if (!editor) return;
-          setMarkdownDocument(editor, markdown, false);
+          loadMarkdownDocument(editor, markdown);
           clearFind(editor);
           findMatchesRef.current = [];
           findIndexRef.current = 0;
           if (modeRef.current === "source") {
             sourceRef.current = markdown;
             setSourceText(markdown);
-            baselineRef.current = canonical(markdown);
+            baselineRef.current = canonicalMarkdown(markdown);
             publishSource(markdown);
           } else {
             const normalized = editorMarkdown(editor);
             sourceRef.current = normalized;
             setSourceText(normalized);
-            baselineRef.current = canonical(normalized);
+            baselineRef.current = canonicalMarkdown(normalized);
             publish(editor);
           }
           onDirtyRef.current(false);
         },
-        markSaved: () => {
-          baselineRef.current = canonical(currentMarkdown());
+        markSaved: (snapshot) => {
+          const current = { path: documentPathRef.current, markdown: currentMarkdown() };
+          if (!savedSnapshotStillCurrent(snapshot, current)) return;
+          baselineRef.current = canonicalMarkdown(current.markdown);
           onDirtyRef.current(false);
         },
         focus: () => {
@@ -483,40 +483,36 @@ export const MarkdownEditor = forwardRef<MarkdownEditorHandle, MarkdownEditorPro
         replaceCurrent: (query, replacement, caseSensitive) => {
           if (!query) return { count: 0, active: 0 };
           if (modeRef.current === "source") {
-            const current = findMatchesRef.current[findIndexRef.current];
+            const matches = findInString(sourceRef.current, query, caseSensitive);
+            const index = resolveMatchIndex(findIndexRef.current, matches.length);
+            const current = matches[index];
             if (!current) return runFind(query, caseSensitive, 0);
             commitSource(spliceMatches(sourceRef.current, [current], replacement));
-            return runFind(query, caseSensitive, findIndexRef.current);
+            return runFind(query, caseSensitive, index);
           }
           if (!editor) return { count: 0, active: 0 };
-          const current = findMatchesRef.current[findIndexRef.current];
-          if (!current) return runFind(query, caseSensitive, 0);
-          findingRef.current = true;
-          try {
-            replaceMatch(editor, current, replacement);
-          } finally {
-            findingRef.current = false;
-          }
-          return runFind(query, caseSensitive, findIndexRef.current);
+          const result = replaceCurrentMatch(
+            editor,
+            query,
+            replacement,
+            caseSensitive,
+            findIndexRef.current,
+          );
+          findIndexRef.current = result.index;
+          return result.snapshot;
         },
         replaceAll: (query, replacement, caseSensitive) => {
           if (!query) return { count: 0, active: 0 };
           if (modeRef.current === "source") {
-            const matches = findMatchesRef.current;
+            const matches = findInString(sourceRef.current, query, caseSensitive);
             if (matches.length === 0) return runFind(query, caseSensitive, 0);
             commitSource(spliceMatches(sourceRef.current, matches, replacement));
             return runFind(query, caseSensitive, 0);
           }
           if (!editor) return { count: 0, active: 0 };
-          const matches = findMatchesRef.current;
-          if (matches.length === 0) return runFind(query, caseSensitive, 0);
-          findingRef.current = true;
-          try {
-            replaceMatches(editor, matches, replacement);
-          } finally {
-            findingRef.current = false;
-          }
-          return runFind(query, caseSensitive, 0);
+          const result = replaceAllMatches(editor, query, replacement, caseSensitive);
+          findIndexRef.current = result.index;
+          return result.snapshot;
         },
         clearFind: () => {
           findMatchesRef.current = [];

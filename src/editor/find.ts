@@ -172,16 +172,72 @@ export function clearFind(editor: Editor): void {
   editor.view.dispatch(editor.state.tr.setMeta(findPluginKey, DecorationSet.empty));
 }
 
-export function replaceMatch(editor: Editor, match: TextMatch, replacement: string): void {
-  editor.view.dispatch(editor.state.tr.insertText(replacement, match.from, match.to));
+function sameBlock(doc: ProseNode, from: number, to: number): boolean {
+  try {
+    return doc.resolve(from).sameParent(doc.resolve(to - 1));
+  } catch {
+    return false;
+  }
 }
 
-export function replaceMatches(editor: Editor, matches: TextMatch[], replacement: string): void {
+function rangeMatchesQuery(
+  doc: ProseNode,
+  from: number,
+  to: number,
+  query: string,
+  caseSensitive: boolean,
+): boolean {
+  if (from < 0 || to > doc.content.size || to <= from) return false;
+  if (!sameBlock(doc, from, to)) return false;
+  const text = doc.textBetween(from, to);
+  return caseSensitive ? text === query : text.toLowerCase() === query.toLowerCase();
+}
+
+/**
+ * Apply replacements on a fresh match list. Each range is mapped through
+ * steps already added in this transaction, then checked against the query,
+ * so an edit since the last highlight cannot write over the wrong text.
+ */
+function dispatchReplacements(
+  editor: Editor,
+  matches: TextMatch[],
+  replacement: string,
+  query: string,
+  caseSensitive: boolean,
+): void {
   let tr = editor.state.tr;
-  for (let i = matches.length - 1; i >= 0; i -= 1) {
-    const match = matches[i];
-    if (!match) continue;
-    tr = tr.insertText(replacement, match.from, match.to);
+  for (const match of matches) {
+    const from = tr.mapping.map(match.from, 1);
+    const to = tr.mapping.map(match.to, -1);
+    if (!rangeMatchesQuery(tr.doc, from, to, query, caseSensitive)) continue;
+    tr = tr.insertText(replacement, from, to);
   }
-  editor.view.dispatch(tr);
+  if (tr.docChanged) editor.view.dispatch(tr);
+}
+
+export function replaceCurrentMatch(
+  editor: Editor,
+  query: string,
+  replacement: string,
+  caseSensitive: boolean,
+  activeIndex: number,
+): { index: number; snapshot: FindSnapshot } {
+  const matches = findMatches(editor.state.doc, query, caseSensitive);
+  const index = resolveMatchIndex(activeIndex, matches.length);
+  const current = matches[index];
+  if (current) dispatchReplacements(editor, [current], replacement, query, caseSensitive);
+  const shown = showFind(editor, query, caseSensitive, index);
+  return { index: shown.index, snapshot: shown.snapshot };
+}
+
+export function replaceAllMatches(
+  editor: Editor,
+  query: string,
+  replacement: string,
+  caseSensitive: boolean,
+): { index: number; snapshot: FindSnapshot } {
+  const matches = findMatches(editor.state.doc, query, caseSensitive);
+  if (matches.length > 0) dispatchReplacements(editor, matches, replacement, query, caseSensitive);
+  const shown = showFind(editor, query, caseSensitive, 0);
+  return { index: shown.index, snapshot: shown.snapshot };
 }

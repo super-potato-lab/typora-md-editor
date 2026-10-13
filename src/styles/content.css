@@ -127,6 +127,24 @@
   height: auto;
 }
 
+#write table {
+  border-collapse: collapse;
+  margin: 1em 0;
+  width: 100%;
+}
+
+#write th,
+#write td {
+  border: 1px solid var(--heading-border, #d0d7de);
+  padding: 0.35em 0.7em;
+  vertical-align: top;
+}
+
+#write th {
+  font-weight: 600;
+  background: var(--code-bg, #f6f8fa);
+}
+
 #write ul[data-type="taskList"] {
   list-style: none;
   padding-left: 0.1rem;
