@@ -117,9 +117,34 @@ function decorate(doc: ProseNode, matches: TextMatch[], active: number): Decorat
   );
 }
 
-function clampIndex(index: number, count: number): number {
+export function resolveMatchIndex(index: number, count: number): number {
   if (count <= 0) return 0;
   return ((index % count) + count) % count;
+}
+
+export function findInString(text: string, query: string, caseSensitive: boolean): TextMatch[] {
+  if (!query) return [];
+  const hay = caseSensitive ? text : text.toLowerCase();
+  const needle = caseSensitive ? query : query.toLowerCase();
+  const matches: TextMatch[] = [];
+  let index = 0;
+  while (needle.length > 0 && index <= hay.length - needle.length) {
+    const found = hay.indexOf(needle, index);
+    if (found < 0) break;
+    matches.push({ from: found, to: found + needle.length });
+    index = found + needle.length;
+  }
+  return matches;
+}
+
+export function spliceMatches(text: string, matches: TextMatch[], replacement: string): string {
+  let next = text;
+  for (let i = matches.length - 1; i >= 0; i -= 1) {
+    const match = matches[i];
+    if (!match) continue;
+    next = next.slice(0, match.from) + replacement + next.slice(match.to);
+  }
+  return next;
 }
 
 export function showFind(
@@ -129,7 +154,7 @@ export function showFind(
   activeIndex: number,
 ): { matches: TextMatch[]; index: number; snapshot: FindSnapshot } {
   const matches = findMatches(editor.state.doc, query, caseSensitive);
-  const index = clampIndex(activeIndex, matches.length);
+  const index = resolveMatchIndex(activeIndex, matches.length);
   let tr = editor.state.tr.setMeta(findPluginKey, decorate(editor.state.doc, matches, index));
   const current = matches[index];
   if (current) {
