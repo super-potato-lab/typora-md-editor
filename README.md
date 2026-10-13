@@ -31,10 +31,12 @@ Other scripts:
 | `npm run dev` | Frontend only (open/save dialogs need the Tauri window) |
 | `npm run build` | Typecheck and bundle the frontend to `dist/` |
 | `npm run tauri build` | Production bundle for the current operating system |
+| `node scripts/package-windows-portable.mjs` | After a Windows `tauri build`, zip the no-install executable |
+| `node --test scripts/package-windows-portable.test.mjs` | Checks that portable zip layout |
 | `cargo test --manifest-path src-tauri/Cargo.toml` | Rust unit tests |
 | `cargo check --manifest-path src-tauri/Cargo.toml` | Rust compile check |
 
-`npm run tauri build` still builds whatever OS you are on. The GitHub workflow below builds Windows installers only.
+`npm run tauri build` still builds whatever OS you are on. The GitHub workflow below builds Windows installers and a Windows portable zip only.
 
 ## Use
 
@@ -52,26 +54,39 @@ Other scripts:
 
 Closing the window asks before discarding unsaved edits.
 
-## Windows installers
+## Windows downloads
 
-GitHub Actions builds **unsigned Windows NSIS and MSI installers only**. Linux and macOS bundles are not produced in CI.
+GitHub Actions builds **unsigned Windows artifacts only**: an NSIS setup, an MSI installer, and a portable zip. Linux and macOS bundles are not produced in CI.
 
-Workflow: [`.github/workflows/release.yml`](.github/workflows/release.yml). It uses `tauri-apps/tauri-action@v1` on `windows-latest` with `--bundles nsis,msi`.
+Tauri 2.12 has no portable bundle target (`nsis` and `msi` are the Windows formats). The portable zip is the release executable those installers copy to disk, plus `WebView2Loader.dll` or Visual C++ runtime DLLs when the build actually produced them, and a `resources/` folder when the app bundles resources. [`.github/workflows/release.yml`](.github/workflows/release.yml) runs `tauri-apps/tauri-action@v1` on `windows-latest` with `--bundles nsis,msi`, then `scripts/package-windows-portable.mjs`.
 
-Trigger it by pushing a version tag:
+| Download | What you do | What it changes on the PC |
+| --- | --- | --- |
+| `*-setup.exe` (NSIS) | Run the setup | Installs the app, Start menu shortcut, uninstaller. Can download the WebView2 bootstrapper if that runtime is missing. |
+| `*.msi` (WiX) | Run the installer | Same kind of installed app, in the Windows Installer format. |
+| `*-portable.zip` | Unzip and run `Markdown Editor.exe` | No setup, no Start menu entry, no uninstaller. Delete the folder to remove the program files. Does not install WebView2. |
+
+Windows 11 already includes WebView2. On Windows 10, install that runtime before using the portable zip. The portable copy is the same executable as the installers, so settings stay in your user profile rather than in the unzipped folder. Both are unsigned, so SmartScreen may warn.
+
+Trigger a release by pushing a version tag:
 
 ```bash
 git tag v0.2.0
 git push origin v0.2.0
 ```
 
-That tag run builds the installers, uploads them as workflow artifacts, and creates a GitHub Release named after the tag with the `.exe` and `.msi` attached.
+That tag run builds the installers and the portable zip, uploads them as workflow artifacts, and creates a GitHub Release named after the tag with the setup `.exe`, the `.msi`, and `Markdown-Editor_<version>_x64-portable.zip` attached.
 
-You can also run the workflow manually from the Actions tab (**Run workflow**). A manual run uploads the same Windows artifacts and does not create a release.
+You can also run the workflow manually from the Actions tab (**Run workflow**). A manual run uploads the same Windows artifacts, including the portable zip, and does not create a release.
 
-No signing secrets are required. The installers are unsigned, so Windows SmartScreen may warn before launch. Adding a certificate is an optional follow-up; it is not part of this workflow.
+No signing secrets are required. `GITHUB_TOKEN` is the token Actions provides for the repository. You do not add a secret to build or publish these unsigned files.
 
-`GITHUB_TOKEN` is the token Actions provides for the repository. You do not add a secret to build or publish these unsigned installers.
+To make the zip locally after a Windows production build:
+
+```bash
+npm run tauri build
+node scripts/package-windows-portable.mjs
+```
 
 ## Structure
 
@@ -91,7 +106,8 @@ themes/                 Document themes. Drop in another lowercase .css file to 
 src-tauri/              Tauri 2 shell
   src/lib.rs            Open/save, image assets, HTML export
   capabilities/         Window permissions
-.github/workflows/      Windows installer workflow
+scripts/                Portable Windows zip (no installer)
+.github/workflows/      Windows installer and portable zip workflow
 ```
 
 Themes style the rendered document (`#write`) and a few chrome variables (`--bg-color`, `--text-color`, `--chrome-bg`, …). They are plain CSS. The active sheet is a `<link id="theme_css">` appended after the app styles.
