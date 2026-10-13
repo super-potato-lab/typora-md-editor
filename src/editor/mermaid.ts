@@ -1,4 +1,4 @@
-import { mergeAttributes, Node } from "@tiptap/core";
+import { mergeAttributes, Node, nodeInputRule } from "@tiptap/core";
 import type { Node as ProseNode } from "@tiptap/pm/model";
 import type { NodeViewRendererProps } from "@tiptap/core";
 import { subscribeLocale, t } from "../i18n/locale.ts";
@@ -209,6 +209,16 @@ export const MermaidBlock = Node.create({
     level: "block",
     start: mermaidLookahead,
     tokenize: (src: string) => tokenizeMermaid(src),
+  },
+
+  addInputRules() {
+    return [
+      nodeInputRule({
+        find: /^```mermaid[\s\n]$/,
+        type: this.type,
+        getAttributes: () => ({ code: "" }),
+      }),
+    ];
   },
 
   addNodeView() {

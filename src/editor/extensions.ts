@@ -5,6 +5,7 @@ import { TableKit } from "@tiptap/extension-table";
 import TaskItem from "@tiptap/extension-task-item";
 import TaskList from "@tiptap/extension-task-list";
 import { Markdown } from "@tiptap/markdown";
+import { HighlightedCodeBlock } from "./codeHighlight";
 import { FindReplace } from "./find";
 import { FootnoteDefinition, FootnoteReference } from "./footnotes";
 import { HeadingAnchor } from "./headingAnchor";
@@ -18,12 +19,14 @@ export function createEditorExtensions(
 ): Extensions {
   return [
     StarterKit.configure({
+      codeBlock: false,
       heading: { levels: [1, 2, 3, 4, 5, 6] },
       link: {
         openOnClick: false,
         autolink: true,
       },
     }),
+    HighlightedCodeBlock,
     HeadingAnchor,
     // GFM tables. Without these nodes the markdown parser drops tables, and
     // the next save writes the document back without them.
