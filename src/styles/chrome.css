@@ -1,0 +1,148 @@
+:root {
+  --bg-color: #ffffff;
+  --text-color: #1f2328;
+  --chrome-bg: #f6f8fa;
+  --chrome-text: #1f2328;
+  --chrome-border: #d0d7de;
+  --muted-color: #59636e;
+  --menu-hover: #eef1f4;
+  --danger-color: #cf222e;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+
+.app {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-color);
+  color: var(--text-color);
+}
+
+.chrome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 42px;
+  padding: 0 0.6rem;
+  background: var(--chrome-bg);
+  color: var(--chrome-text);
+  border-bottom: 1px solid var(--chrome-border);
+  user-select: none;
+}
+
+.menus {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.menu {
+  position: relative;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.menu-button {
+  padding: 0.32rem 0.65rem;
+}
+
+.menu-button:hover,
+.menu-button[aria-expanded="true"] {
+  background: var(--menu-hover);
+}
+
+.menu-panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 5;
+  min-width: 220px;
+  padding: 0.3rem;
+  background: var(--chrome-bg);
+  color: var(--chrome-text);
+  border: 1px solid var(--chrome-border);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14);
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  width: 100%;
+  text-align: left;
+  padding: 0.38rem 0.65rem;
+  border-radius: 5px;
+}
+
+.menu-item:hover {
+  background: var(--menu-hover);
+}
+
+.hint {
+  color: var(--muted-color);
+  font-size: 0.85em;
+}
+
+.chrome-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-width: 0;
+  color: var(--muted-color);
+  font-size: 0.86rem;
+}
+
+.status {
+  max-width: 36vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status.error {
+  color: var(--danger-color);
+}
+
+.doc-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-scroll {
+  flex: 1;
+  overflow: auto;
+  background: var(--bg-color);
+}
+
+button:focus-visible {
+  outline: 2px solid var(--primary-color, #0969da);
+  outline-offset: 1px;
+}
