@@ -1,4 +1,6 @@
+import katex from "katex";
 import contentCss from "../styles/content.css?raw";
+import katexCss from "katex/dist/katex.min.css?raw";
 import { themeCss } from "../themes";
 import { rewriteImgSrcs } from "./imagePaths";
 import { displayImageSrc } from "./imageSrc";
@@ -25,7 +27,9 @@ export function buildExportHtml(options: {
   <title>${escapeHtml(options.title)}</title>
   <style>
 ${contentCss}
+${katexCss}
 ${theme}
+.katex-display { overflow-x: auto; overflow-y: hidden; }
 html, body { margin: 0; background: var(--bg-color); color: var(--text-color); }
 #write { padding: 2.5rem 1.5rem 4rem; }
   </style>
@@ -53,6 +57,47 @@ export function buildPrintHtml(options: {
     bodyHtml,
     themeId: options.themeId,
   });
+}
+
+export async function renderRichHtml(bodyHtml: string): Promise<string> {
+  if (!bodyHtml.trim()) return bodyHtml;
+  const doc = new DOMParser().parseFromString(`<div id="export-root">${bodyHtml}</div>`, "text/html");
+  const root = doc.getElementById("export-root");
+  if (!root) return bodyHtml;
+
+  root.querySelectorAll("[data-type='inline-math'], [data-type='block-math']").forEach((el) => {
+    const latex = el.getAttribute("data-latex") ?? "";
+    const display = el.getAttribute("data-type") === "block-math";
+    el.innerHTML = katex.renderToString(latex, { throwOnError: false, displayMode: display });
+  });
+
+  const diagrams = [...root.querySelectorAll("[data-type='mermaid']")];
+  if (diagrams.length > 0 && import.meta.env.MODE !== "test") {
+    const mermaid = (await import("mermaid")).default;
+    const dark = getComputedStyle(document.documentElement).colorScheme === "dark";
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: "strict",
+      suppressErrorRendering: true,
+      theme: dark ? "dark" : "default",
+    });
+    for (let index = 0; index < diagrams.length; index += 1) {
+      const el = diagrams[index];
+      const code = el?.querySelector("pre")?.textContent ?? "";
+      if (!el || !code.trim()) continue;
+      try {
+        const id = `export-mermaid-${index}-${Math.random().toString(36).slice(2, 8)}`;
+        const rendered = await mermaid.render(id, code);
+        el.innerHTML = rendered.svg;
+        const leftover = document.getElementById(id);
+        if (leftover && !el.contains(leftover)) leftover.remove();
+      } catch {
+        // Keep the diagram source in the exported file.
+      }
+    }
+  }
+
+  return root.innerHTML;
 }
 
 export async function printHtml(html: string, frameTitle = "Print preview"): Promise<void> {

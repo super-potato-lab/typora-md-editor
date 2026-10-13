@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { MarkdownEditor, type MarkdownEditorHandle } from "./editor/MarkdownEditor";
-import { buildExportHtml, buildPrintHtml, printHtml } from "./editor/exportHtml";
+import { MarkdownEditor, type EditorMode, type MarkdownEditorHandle } from "./editor/MarkdownEditor";
+import { buildExportHtml, buildPrintHtml, printHtml, renderRichHtml } from "./editor/exportHtml";
 import type { DocStats, OutlineItem } from "./editor/outline";
 import {
   basename,
@@ -36,6 +36,15 @@ interface Marks {
 }
 
 const OUTLINE_KEY = "markdown-editor.outline";
+const MODE_KEY = "markdown-editor.mode";
+
+function readMode(): EditorMode {
+  try {
+    return localStorage.getItem(MODE_KEY) === "source" ? "source" : "wysiwyg";
+  } catch {
+    return "wysiwyg";
+  }
+}
 
 function shortcutLabel(key: string): string {
   const mod = /Mac|iPhone|iPad/u.test(navigator.platform) ? "⌘" : "Ctrl";
@@ -86,6 +95,7 @@ export function App() {
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [findCount, setFindCount] = useState(0);
   const [findActive, setFindActive] = useState(0);
+  const [editorMode, setEditorMode] = useState<EditorMode>(readMode);
 
   useEffect(() => {
     dirtyRef.current = dirty;
@@ -277,7 +287,7 @@ export function App() {
   const exportHtml = useCallback(async () => {
     const html = buildExportHtml({
       title: pathRef.current ? basename(pathRef.current) : t("doc.untitled"),
-      bodyHtml: editorRef.current?.getHTML() ?? "",
+      bodyHtml: await renderRichHtml(editorRef.current?.getHTML() ?? ""),
       themeId: theme,
     });
     const suggested = replaceExtension(pathRef.current, "html", t("doc.untitledFile"));
@@ -309,19 +319,17 @@ export function App() {
     }
   }, [note, theme]);
 
-  const exportPdf = useCallback(() => {
+  const exportPdf = useCallback(async () => {
     const current = pathRef.current;
     try {
       const html = buildPrintHtml({
         title: current ? basename(current) : t("doc.untitled"),
-        bodyHtml: editorRef.current?.getHTML() ?? "",
+        bodyHtml: await renderRichHtml(editorRef.current?.getHTML() ?? ""),
         themeId: theme,
         documentDir: current ? dirname(current) : null,
       });
       note("info", t("status.printPdf"));
-      void printHtml(html, t("print.frameTitle")).catch((err: unknown) => {
-        note("error", localizeError(err));
-      });
+      await printHtml(html, t("print.frameTitle"));
     } catch (err) {
       note("error", localizeError(err));
     }
@@ -334,6 +342,32 @@ export function App() {
     } catch (err) {
       note("error", localizeError(err));
     }
+  }, [note]);
+
+  const chooseMode = useCallback((next: EditorMode) => {
+    setEditorMode(next);
+    try {
+      localStorage.setItem(MODE_KEY, next);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const toggleMode = useCallback(() => {
+    setEditorMode((current) => {
+      const next = current === "source" ? "wysiwyg" : "source";
+      try {
+        localStorage.setItem(MODE_KEY, next);
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
+
+  const insertToc = useCallback(() => {
+    const inserted = editorRef.current?.insertTableOfContents() ?? false;
+    note(inserted ? "info" : "error", inserted ? t("status.insertedToc") : t("status.noHeadings"));
   }, [note]);
 
   const toggleOutline = useCallback(() => {
@@ -368,11 +402,24 @@ export function App() {
       } else if (key === "h") {
         event.preventDefault();
         openFind(true);
+      } else if (key === "\\") {
+        event.preventDefault();
+        toggleMode();
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [openFile, openFind, save, saveAs]);
+  }, [openFile, openFind, save, saveAs, toggleMode]);
+
+  useEffect(() => {
+    if (!findOpen) return;
+    const snapshot = editorRef.current?.setFindQuery(findQuery, caseSensitive) ?? {
+      count: 0,
+      active: 0,
+    };
+    setFindCount(snapshot.count);
+    setFindActive(snapshot.active);
+  }, [editorMode]);
 
   const untitled = t("doc.untitled");
   const docName = path ? basename(path) : untitled;
@@ -391,7 +438,7 @@ export function App() {
               <MenuSeparator />
               <MenuItem label={t("file.insertImage")} onSelect={() => void insertImage()} />
               <MenuItem label={t("file.exportHtml")} onSelect={() => void exportHtml()} />
-              <MenuItem label={t("file.exportPdf")} onSelect={exportPdf} />
+              <MenuItem label={t("file.exportPdf")} onSelect={() => void exportPdf()} />
             </Menu>
             <Menu label={t("menu.edit")}>
               <MenuItem label={t("edit.find")} hint={shortcutLabel("F")} onSelect={() => openFind(false)} />
@@ -416,8 +463,26 @@ export function App() {
                 checked={marks.code}
                 onSelect={() => editorRef.current?.toggleCode()}
               />
+              <MenuSeparator />
+              <MenuItem label={t("format.inlineMath")} onSelect={() => editorRef.current?.insertInlineMath()} />
+              <MenuItem label={t("format.blockMath")} onSelect={() => editorRef.current?.insertBlockMath()} />
+              <MenuItem label={t("format.mermaid")} onSelect={() => editorRef.current?.insertMermaid()} />
+              <MenuItem label={t("format.footnote")} onSelect={() => editorRef.current?.insertFootnote()} />
+              <MenuItem label={t("format.toc")} onSelect={insertToc} />
             </Menu>
             <Menu label={t("menu.view")}>
+              <MenuItem
+                label={t("view.wysiwyg")}
+                checked={editorMode === "wysiwyg"}
+                onSelect={() => chooseMode("wysiwyg")}
+              />
+              <MenuItem
+                label={t("view.source")}
+                hint={shortcutLabel("\\")}
+                checked={editorMode === "source"}
+                onSelect={() => chooseMode("source")}
+              />
+              <MenuSeparator />
               <MenuItem label={t("view.outline")} checked={outlineOpen} onSelect={toggleOutline} />
               <MenuSeparator />
               <MenuItem
@@ -442,6 +507,22 @@ export function App() {
               ))}
             </Menu>
           </nav>
+          <div className="mode-toggle" role="group" aria-label={t("view.mode")}>
+            <button
+              type="button"
+              aria-pressed={editorMode === "wysiwyg"}
+              onClick={() => chooseMode("wysiwyg")}
+            >
+              {t("view.wysiwyg")}
+            </button>
+            <button
+              type="button"
+              aria-pressed={editorMode === "source"}
+              onClick={() => chooseMode("source")}
+            >
+              {t("view.source")}
+            </button>
+          </div>
           <div className="chrome-meta">
             {status && (
               <span className={status.kind === "error" ? "status error" : "status"} role="status">
@@ -541,6 +622,7 @@ export function App() {
           >
             <MarkdownEditor
               ref={editorRef}
+              mode={editorMode}
               onDirtyChange={setDirty}
               onDocumentChange={(nextOutline, nextStats) => {
                 setOutline(nextOutline);
@@ -552,6 +634,7 @@ export function App() {
           </div>
         </div>
         <footer className="statusbar">
+          <span>{editorMode === "source" ? t("view.source") : t("view.wysiwyg")}</span>
           <span>{wordLabel}</span>
           <span>{t("status.chars", { count: stats.chars })}</span>
           <span className="statusbar-path" title={path ?? untitled}>

@@ -188,3 +188,99 @@
   max-width: 100%;
   height: auto;
 }
+
+#write .tiptap-mathematics-render {
+  cursor: pointer;
+}
+
+#write div.tiptap-mathematics-render {
+  margin: 0.85em 0;
+  overflow-x: auto;
+}
+
+#write .katex-display {
+  margin: 0;
+}
+
+#write .mermaid-block {
+  margin: 1em 0;
+  padding: 0.75rem 0.75rem 0.45rem;
+  border: 1px solid var(--heading-border, #d0d7de);
+  border-radius: 8px;
+  background: var(--code-bg, #f6f8fa);
+}
+
+#write .mermaid-block svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+#write .mermaid-canvas[hidden],
+#write .mermaid-error[hidden],
+#write .mermaid-source[hidden] {
+  display: none !important;
+}
+
+#write .mermaid-source:not([hidden]),
+#write .footnote-body {
+  display: block;
+  width: 100%;
+  margin: 0.4rem 0;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--chrome-border, #d0d7de);
+  border-radius: 6px;
+  background: var(--bg-color, #fff);
+  color: var(--text-color);
+  font-family: var(--monospace, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 0.86rem;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+#write .mermaid-edit {
+  padding: 0.15rem 0.45rem;
+  color: var(--muted-color, #59636e);
+  font-size: 0.78rem;
+}
+
+#write .mermaid-error {
+  margin: 0.4rem 0;
+  color: var(--danger-color, #cf222e);
+  white-space: pre-wrap;
+  font-family: var(--monospace, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  font-size: 0.82rem;
+}
+
+#write .footnote-ref {
+  font-size: 0.75em;
+  line-height: 0;
+}
+
+#write .footnote-ref a {
+  padding: 0 0.12em;
+}
+
+#write .footnote-definition {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin: 0.55em 0;
+  padding-top: 0.45rem;
+  border-top: 1px solid var(--heading-border, #d0d7de);
+  color: var(--muted-color, #59636e);
+  font-size: 0.92em;
+}
+
+#write .footnote-label {
+  flex: none;
+  margin-top: 0.35rem;
+  font-family: var(--monospace, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+}
+
+#write .ProseMirror-selectednode.mermaid-block,
+#write .ProseMirror-selectednode.footnote-definition {
+  outline: 2px solid var(--primary-color, #0969da);
+  outline-offset: 2px;
+}

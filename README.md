@@ -30,6 +30,7 @@ Other scripts:
 | --- | --- |
 | `npm run dev` | Frontend only (open/save dialogs need the Tauri window) |
 | `npm run build` | Typecheck and bundle the frontend to `dist/` |
+| `npm test` | Markdown round-trip checks (math, Mermaid, footnotes, contents) |
 | `npm run tauri build` | Production bundle for the current operating system |
 | `node scripts/package-windows-portable.mjs` | After a Windows `tauri build`, zip the no-install executable |
 | `node --test scripts/package-windows-portable.test.mjs` | Checks that portable zip layout |
@@ -49,7 +50,20 @@ Other scripts:
 - **File → Export HTML…** writes a standalone HTML file that includes the active theme. Image links stay relative, so keep the HTML next to the Markdown file and its `assets/` folder.
 - **File → Export PDF…** opens the system print dialog on a theme-styled copy of the document. Choose **Save as PDF** (or Microsoft Print to PDF). There is no bundled PDF engine.
 - **Edit → Find / Replace** (`Ctrl/Cmd+F`, `Ctrl/Cmd+H`) searches the document text. Enter jumps to the next match, Shift+Enter to the previous one.
-- **Format → Bold / Italic / Code** (`Ctrl/Cmd+B`, `Ctrl/Cmd+I`, `Ctrl/Cmd+E`) toggles those TipTap marks. The same shortcuts work while the editor is focused.
+- **Format → Bold / Italic / Code** (`Ctrl/Cmd+B`, `Ctrl/Cmd+I`, `Ctrl/Cmd+E`) toggles those TipTap marks. The same shortcuts work while the editor is focused. In Source they wrap the selection.
+- **Format → Inline Math / Block Math** inserts KaTeX. In the document, inline math is `$E = mc^2$` and block math is a paragraph of its own:
+
+  ```markdown
+  $$
+  \int_0^1 x^2 \, dx
+  $$
+  ```
+
+  `$$E = mc^2$$` on its own line is the same block. Click a rendered formula to edit the LaTeX.
+- **Format → Mermaid Diagram** inserts a ` ```mermaid ` fence. The live editor draws the diagram. **Edit diagram** changes the source, then **Done** draws it again.
+- **Format → Footnote** inserts `[^1]` at the cursor and a matching `[^1]: ` definition at the end. The definition stays editable. Click the superscript to jump to it.
+- **Format → Table of Contents** inserts a linked list built from the current headings. Heading links scroll to those headings.
+- **View → WYSIWYG / Source** (`Ctrl/Cmd+\`), or the toolbar switch, toggles the TipTap editor and a raw Markdown editor. Edits in either view are the text you save. Switching copies the current text into the other view.
 - **View → Outline** shows or hides the heading list. Click a heading to scroll to it. The same sidebar lists recent files.
 - **Theme** switches the document skin. The choice is stored in `localStorage`.
 - The window title shows the full path and a dirty marker. The status bar shows the word count, character count, and path.
@@ -122,7 +136,7 @@ index.html              Vite entry
 src/                    React UI
   App.tsx               Menus, find bar, status bar
   chrome/               Outline sidebar, find bar, menus
-  editor/               TipTap editor, find/replace, HTML export
+  editor/               TipTap editor, source view, math, Mermaid, footnotes, export
   files.ts              Tauri invoke wrappers
   recent.ts             Recent-file list in localStorage
   themes.ts             Loads every CSS file in themes/ and swaps #theme_css
