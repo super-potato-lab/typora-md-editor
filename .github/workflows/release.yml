@@ -62,7 +62,7 @@ jobs:
             Unsigned Windows builds for Markdown Editor.
 
             - NSIS setup (`.exe`) and WiX installer (`.msi`) install the app.
-            - `*-portable.zip` does not install anything. Unzip it and run `Markdown Editor.exe`.
+            - `*-portable.zip` does not install anything. Unzip it and run `markdown-editor.exe`.
 
             These files are not code-signed. Windows SmartScreen may warn until a certificate is added.
             The portable zip does not install WebView2. Windows 11 already includes that runtime.
@@ -77,7 +77,13 @@ jobs:
         id: portable
         shell: pwsh
         run: |
-          $zip = (node scripts/package-windows-portable.mjs).Trim()
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $false
+          $zip = node scripts/package-windows-portable.mjs
+          if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace([string]$zip)) {
+            throw "Portable zip was not created (node exit code $LASTEXITCODE)."
+          }
+          $zip = ([string]$zip).Trim()
           if (-not (Test-Path -LiteralPath $zip)) { throw "Portable zip was not created: $zip" }
           "zip=$zip" >> $env:GITHUB_OUTPUT
 

@@ -51,7 +51,56 @@ test("missing executable fails before writing a zip", async () => {
     await writeFile(configPath, JSON.stringify({ productName: "Markdown Editor", version: "0.1.0" }));
     await assert.rejects(
       packagePortable({ releaseDir, configPath, outPath: path.join(root, "out.zip") }),
-      /Portable build needs/,
+      /could not find the Windows executable/,
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("finds the Cargo package exe under a Windows target triple", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "portable-triple-"));
+  try {
+    const tauriDir = path.join(root, "src-tauri");
+    const releaseDir = path.join(tauriDir, "target", "x86_64-pc-windows-msvc", "release");
+    const nsisDir = path.join(tauriDir, "target", "release", "bundle", "nsis");
+    await mkdir(path.join(releaseDir, "resources"), { recursive: true });
+    await mkdir(nsisDir, { recursive: true });
+    await writeFile(
+      path.join(tauriDir, "tauri.conf.json"),
+      JSON.stringify({ productName: "Markdown Editor", version: "0.1.0" }),
+    );
+    await writeFile(path.join(tauriDir, "Cargo.toml"), '[package]\nname = "markdown-editor"\nversion = "0.1.0"\n');
+    await writeFile(path.join(releaseDir, "markdown-editor.exe"), "real-exe");
+    await writeFile(path.join(releaseDir, "WebView2Loader.dll"), "loader");
+    await writeFile(path.join(nsisDir, "Markdown Editor_0.1.0_x64-setup.exe"), "installer");
+
+    const zipPath = await packagePortable({ projectRoot: root, arch: "x64" });
+    const entries = await unzip(await readFile(zipPath));
+    assert.equal(entries["Markdown Editor/markdown-editor.exe"].toString(), "real-exe");
+    assert.equal(entries["Markdown Editor/WebView2Loader.dll"].toString(), "loader");
+    assert.match(entries["Markdown Editor/README.txt"].toString("utf8"), /markdown-editor\.exe/);
+    assert.equal(entries["Markdown Editor/Markdown Editor_0.1.0_x64-setup.exe"], undefined);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("does not zip an NSIS setup when the app executable is missing", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "portable-setup-only-"));
+  try {
+    const tauriDir = path.join(root, "src-tauri");
+    const nsisDir = path.join(tauriDir, "target", "release", "bundle", "nsis");
+    await mkdir(nsisDir, { recursive: true });
+    await writeFile(
+      path.join(tauriDir, "tauri.conf.json"),
+      JSON.stringify({ productName: "Markdown Editor", version: "0.1.0" }),
+    );
+    await writeFile(path.join(tauriDir, "Cargo.toml"), '[package]\nname = "markdown-editor"\nversion = "0.1.0"\n');
+    await writeFile(path.join(nsisDir, "Markdown Editor_0.1.0_x64-setup.exe"), "installer");
+    await assert.rejects(
+      packagePortable({ projectRoot: root, outPath: path.join(root, "out.zip") }),
+      /could not find the Windows executable/,
     );
   } finally {
     await rm(root, { recursive: true, force: true });
