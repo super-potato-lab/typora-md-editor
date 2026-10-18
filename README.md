@@ -43,6 +43,7 @@ Other scripts:
 
 ## Use
 
+- **File → New** (`Ctrl/Cmd+N`) starts a blank untitled document. Unsaved edits ask before they are discarded.
 - **File → Open…** (`Ctrl/Cmd+O`) opens a `.md` or `.markdown` file.
 - **File → Save** (`Ctrl/Cmd+S`) writes the current path, or asks for one if the document is still untitled.
 - **File → Save As…** (`Ctrl/Cmd+Shift+S`) always asks for a path. A name without an extension is saved as `.md`.
