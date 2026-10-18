@@ -138,25 +138,44 @@
   font-size: 0.86em;
 }
 
+#write pre.code-block,
 #write pre[data-language] {
   position: relative;
-  padding-top: 1.7rem;
+  padding-bottom: 2.1rem;
 }
 
-#write pre[data-language]::before {
-  content: attr(data-language);
+#write .code-language-bar {
   position: absolute;
-  top: 0.45rem;
-  right: 0.75rem;
+  right: 0.45rem;
+  bottom: 0.3rem;
+  z-index: 1;
+  display: flex;
+  justify-content: flex-end;
+  max-width: calc(100% - 0.9rem);
+  pointer-events: auto;
+}
+
+#write .code-language-input {
+  box-sizing: border-box;
+  width: 8.5rem;
+  max-width: 100%;
+  margin: 0;
+  padding: 0.22rem 0.45rem;
+  border: 1px solid var(--border-color, #d0d7de);
+  border-radius: 6px;
+  background: var(--bg-color, #fff);
   color: var(--muted-color, #59636e);
   font-family: var(--monospace, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
-  font-size: 0.72rem;
-  font-style: normal;
-  font-weight: 500;
+  font-size: 0.86rem;
+  font-weight: 600;
+  line-height: 1.2;
   letter-spacing: 0.01em;
-  line-height: 1;
-  pointer-events: none;
-  user-select: none;
+}
+
+#write .code-language-input:focus {
+  outline: 2px solid var(--accent-color, #0969da);
+  outline-offset: 1px;
+  color: var(--text-color, inherit);
 }
 
 #write pre .hljs-comment,

@@ -1,6 +1,6 @@
 import { Editor } from "@tiptap/core";
 import { afterEach, describe, expect, it } from "vitest";
-import { codeLowlight } from "./codeHighlight";
+import { CODE_LANGUAGE_HINTS, codeLowlight } from "./codeHighlight";
 import { createEditorExtensions } from "./extensions";
 import { editorMarkdown, setMarkdownDocument } from "./setMarkdownDocument";
 
@@ -153,6 +153,36 @@ describe("fenced code highlighting", () => {
     setMarkdownDocument(editor, again);
     expect(attrs(editor, "mermaid")).toHaveLength(1);
     expect(attrs(editor, "codeBlock")).toEqual([{ language: "python" }]);
+  });
+
+
+  it("shows an editable language field at the bottom-right with hints", () => {
+    const editor = mount(["```xml", "<a/>", "```"].join("\n"));
+    const pre = editor.view.dom.querySelector("pre.code-block");
+    expect(pre).not.toBeNull();
+    const input = pre!.querySelector("input.code-language-input") as HTMLInputElement | null;
+    expect(input).not.toBeNull();
+    expect(input!.value).toBe("xml");
+    const listId = input!.getAttribute("list");
+    expect(listId).toBeTruthy();
+    const options = [...pre!.querySelectorAll(`datalist#${listId} option`)].map((node) =>
+      (node as HTMLOptionElement).value,
+    );
+    expect(options).toEqual([...CODE_LANGUAGE_HINTS]);
+    expect(options).toContain("python");
+    expect(options).toContain("js");
+    expect(options).not.toContain("mermaid");
+
+    input!.value = "python";
+    input!.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(attrs(editor, "codeBlock")).toEqual([{ language: "python" }]);
+    expect(pre!.getAttribute("data-language")).toBe("python");
+    expect(editorMarkdown(editor)).toContain("```python\n<a/>\n```");
+
+    input!.value = "";
+    input!.dispatchEvent(new Event("change", { bubbles: true }));
+    expect(attrs(editor, "codeBlock")).toEqual([{ language: null }]);
+    expect(pre!.hasAttribute("data-language")).toBe(false);
   });
 
   it("types a language fence as code and a mermaid fence as a diagram", () => {
