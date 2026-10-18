@@ -30,7 +30,7 @@ Other scripts:
 | --- | --- |
 | `npm run dev` | Frontend only (open/save dialogs need the Tauri window) |
 | `npm run build` | Typecheck and bundle the frontend to `dist/` |
-| `npm test` | Editor regressions: tables, find/replace, save races, undo, math, Mermaid, footnotes, contents |
+| `npm test` | Editor regressions: tables, find/replace, save races, undo, math, Mermaid, footnotes, contents, heading IME |
 | `npm run tauri build` | Production bundle for the current operating system |
 | `node scripts/package-windows-portable.mjs` | After a Windows `tauri build`, zip the no-install executable |
 | `node --test scripts/package-windows-portable.test.mjs` | Checks that portable zip layout |
@@ -44,9 +44,9 @@ Other scripts:
 ## Use
 
 - **File → New** (`Ctrl/Cmd+N`) starts a blank untitled document. Unsaved edits ask before they are discarded.
-- **File → Open…** (`Ctrl/Cmd+O`) opens a `.md` or `.markdown` file.
-- **File → Save** (`Ctrl/Cmd+S`) writes the current path, or asks for one if the document is still untitled.
-- **File → Save As…** (`Ctrl/Cmd+Shift+S`) always asks for a path. A name without an extension is saved as `.md`.
+- **File → Open…** (`Ctrl/Cmd+O`) opens a `.md` or `.markdown` file. Unsaved edits ask before they are discarded.
+- **File → Save** (`Ctrl/Cmd+S`) overwrites the open file. A new or untitled document has no path, so Save opens the Save As dialog and does not write until a location is chosen. Nothing is written in the background: there is no timer autosave and no save on focus.
+- **File → Save As…** (`Ctrl/Cmd+Shift+S`) always asks for a path. The dialog writes the file once. A name without an extension is saved as `.md`.
 - GitHub-style tables open as tables and are written back as Markdown tables.
 - **File → Insert Image…**, or paste / drop an image. The file is copied into an `assets/` folder next to the Markdown file, and the document gets a relative image link such as `![diagram](assets/diagram.png)`. Save the document before inserting an image.
 - **File → Export HTML…** writes a standalone HTML file that includes the active theme. Image links stay relative, so keep the HTML next to the Markdown file and its `assets/` folder.

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { canonicalMarkdown, createSaveSerializer, savedSnapshotStillCurrent } from "./saveSession";
+import {
+  canonicalMarkdown,
+  createSaveSerializer,
+  documentNeedsSaveLocation,
+  saveAsNeedsRewrite,
+  savedSnapshotStillCurrent,
+} from "./saveSession";
 
 describe("savedSnapshotStillCurrent", () => {
   it("accepts the same path and content", () => {
@@ -30,6 +36,21 @@ describe("savedSnapshotStillCurrent", () => {
   });
 });
 
+describe("documentNeedsSaveLocation", () => {
+  it("requires a location for New / untitled documents", () => {
+    expect(documentNeedsSaveLocation(null)).toBe(true);
+    expect(documentNeedsSaveLocation(undefined)).toBe(true);
+    expect(documentNeedsSaveLocation("")).toBe(true);
+    expect(documentNeedsSaveLocation("   ")).toBe(true);
+  });
+
+  it("keeps an opened path on in-place Save", () => {
+    expect(documentNeedsSaveLocation("/notes/a.md")).toBe(false);
+    expect(saveAsNeedsRewrite(false)).toBe(false);
+    expect(saveAsNeedsRewrite(true)).toBe(true);
+  });
+});
+
 describe("createSaveSerializer", () => {
   it("runs saves of one path in order and lets another path proceed", async () => {
     const { enqueue } = createSaveSerializer();
@@ -57,6 +78,44 @@ describe("createSaveSerializer", () => {
     await first;
     await second;
     expect(order).toEqual(["a-start", "b", "a-end", "a-next"]);
+  });
+
+  it("reports whether a save is queued behind another write of the same path", async () => {
+    const { enqueue } = createSaveSerializer();
+    const flags: boolean[] = [];
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    const first = enqueue("a.md", async (followsQueuedWrite) => {
+      flags.push(followsQueuedWrite);
+      await gate;
+    });
+    const second = enqueue("a.md", async (followsQueuedWrite) => {
+      flags.push(followsQueuedWrite);
+    });
+    const other = enqueue("b.md", async (followsQueuedWrite) => {
+      flags.push(followsQueuedWrite);
+    });
+
+    await other;
+    release();
+    await first;
+    await second;
+    expect(flags).toEqual([false, false, true]);
+  });
+
+  it("treats a settled path as idle so Save As does not write twice", async () => {
+    const { enqueue } = createSaveSerializer();
+    const flags: boolean[] = [];
+    await enqueue("a.md", async (followsQueuedWrite) => {
+      flags.push(followsQueuedWrite);
+    });
+    await enqueue("a.md", async (followsQueuedWrite) => {
+      flags.push(followsQueuedWrite);
+    });
+    expect(flags).toEqual([false, false]);
   });
 
   it("continues the queue after a failed save", async () => {

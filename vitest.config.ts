@@ -13,6 +13,7 @@ export default defineConfig({
       "src/editor/codeHighlight.test.ts",
       "src/editor/outline.test.ts",
       "src/saveSession.test.ts",
+      "src/editor/headingAnchor.test.ts",
     ],
   },
 });

@@ -38,8 +38,12 @@ export async function readMarkdownFile(path: string): Promise<OpenedFile> {
   return invoke<OpenedFile>("read_markdown", { path });
 }
 
+/** Overwrite a markdown file the user already chose with Save. Not used for autosave. */
 export async function saveMarkdownFile(path: string, content: string): Promise<void> {
   assertDesktop();
+  if (!path.trim()) {
+    throw new Error("Choose a location with Save As before writing.");
+  }
   await invoke("save_markdown", { path, content });
 }
 

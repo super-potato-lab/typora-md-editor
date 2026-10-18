@@ -19,8 +19,33 @@ export function savedSnapshotStillCurrent(snapshot: SaveSnapshot, current: SaveS
   );
 }
 
+/**
+ * Untitled documents have no path. Save must open the location picker
+ * and must not write a markdown file until the user chooses one.
+ * Blank strings count as untitled so a write is never aimed at "".
+ */
+export function documentNeedsSaveLocation(
+  path: string | null | undefined,
+): path is null | undefined {
+  return typeof path !== "string" || path.trim() === "";
+}
+
+/**
+ * The Save As dialog already wrote the file. Repeat that write only when
+ * an older save of the same path is still queued and could finish last.
+ */
+export function saveAsNeedsRewrite(followsQueuedWrite: boolean): boolean {
+  return followsQueuedWrite;
+}
+
 export interface SaveSerializer {
-  enqueue(path: string, task: () => Promise<void>): Promise<void>;
+  /**
+   * Queue `task` after any in-flight save of `path`.
+   * `followsQueuedWrite` is true when another save of this path was still
+   * queued. A write that already landed (the Save As dialog) has to be
+   * repeated after that older save, or the older save can overwrite it.
+   */
+  enqueue(path: string, task: (followsQueuedWrite: boolean) => Promise<void>): Promise<void>;
 }
 
 /**
@@ -33,16 +58,30 @@ export function createSaveSerializer(): SaveSerializer {
 
   return {
     enqueue(path, task) {
-      const previous = tails.get(path) ?? Promise.resolve();
-      const run = previous.then(task, task);
-      const settled = run.then(
-        () => undefined,
-        () => undefined,
-      );
-      tails.set(path, settled);
-      void settled.finally(() => {
-        if (tails.get(path) === settled) tails.delete(path);
+      const previous = tails.get(path);
+      const followsQueuedWrite = previous !== undefined;
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
       });
+      tails.set(path, gate);
+      const run = (previous ?? Promise.resolve()).then(
+        () => task(followsQueuedWrite),
+        () => task(followsQueuedWrite),
+      );
+      // Drop the slot as soon as the write settles, before the caller
+      // continues, so a later Save As is not treated as queued behind a
+      // write that has already finished.
+      void run.then(
+        () => {
+          if (tails.get(path) === gate) tails.delete(path);
+          release();
+        },
+        () => {
+          if (tails.get(path) === gate) tails.delete(path);
+          release();
+        },
+      );
       return run;
     },
   };

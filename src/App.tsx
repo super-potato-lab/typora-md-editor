@@ -23,7 +23,13 @@ import { FindBar } from "./chrome/FindBar";
 import { Menu, MenuItem, MenuSeparator } from "./chrome/Menu";
 import { OutlineSidebar } from "./chrome/OutlineSidebar";
 import { handleCloseRequest } from "./closeGuard";
-import { createSaveSerializer, savedSnapshotStillCurrent, type SaveSnapshot } from "./saveSession";
+import {
+  createSaveSerializer,
+  documentNeedsSaveLocation,
+  saveAsNeedsRewrite,
+  savedSnapshotStillCurrent,
+  type SaveSnapshot,
+} from "./saveSession";
 
 interface Status {
   kind: "info" | "error";
@@ -252,12 +258,15 @@ export function App() {
         title: t("dialog.saveTitle"),
         filter: t("dialog.filterMarkdown"),
       });
-      if (!saved) return;
+      if (!saved || documentNeedsSaveLocation(saved.path)) return;
       const snapshot: SaveSnapshot = { path: saved.path, markdown: saved.content };
       // The dialog already wrote the file, including rewritten image links.
-      // Queue that same text so an older save of this path cannot finish last.
-      await enqueueSave(saved.path, async () => {
-        await saveMarkdownFile(saved.path, saved.content);
+      // Stay in the per-path queue so an older save cannot finish last, but
+      // do not write the same bytes again when nothing is queued ahead.
+      await enqueueSave(saved.path, async (followsQueuedWrite) => {
+        if (saveAsNeedsRewrite(followsQueuedWrite)) {
+          await saveMarkdownFile(saved.path, saved.content);
+        }
         setRecent(rememberRecent(saved.path));
         if (pathRef.current !== startedPath) return;
         const stillSnapshot = savedSnapshotStillCurrent(
@@ -283,7 +292,9 @@ export function App() {
 
   const save = useCallback(async () => {
     const current = pathRef.current;
-    if (!current) {
+    // New / untitled documents have no path. Save always opens Save As.
+    // There is no timer or focus autosave anywhere else in the app.
+    if (documentNeedsSaveLocation(current)) {
       await saveAs();
       return;
     }
