@@ -214,6 +214,20 @@ export function App() {
     }
   }, [confirmDiscard, loadDocument, note]);
 
+  const newFile = useCallback(async () => {
+    if (!(await confirmDiscard())) return;
+    pathRef.current = null;
+    setPath(null);
+    editorRef.current?.setMarkdown("");
+    editorRef.current?.setDocumentPath(null);
+    setFindOpen(false);
+    setFindQuery("");
+    setFindCount(0);
+    setFindActive(0);
+    note("info", t("status.new"));
+    queueMicrotask(() => editorRef.current?.focus());
+  }, [confirmDiscard, note]);
+
   const openRecent = useCallback(
     async (recentPath: string) => {
       if (recentPath === pathRef.current) return;
@@ -423,6 +437,9 @@ export function App() {
       } else if (key === "o") {
         event.preventDefault();
         void openFile();
+      } else if (key === "n") {
+        event.preventDefault();
+        void newFile();
       } else if (key === "f") {
         event.preventDefault();
         openFind(false);
@@ -436,7 +453,7 @@ export function App() {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [openFile, openFind, save, saveAs, toggleMode]);
+  }, [newFile, openFile, openFind, save, saveAs, toggleMode]);
 
   useEffect(() => {
     if (!findOpen) return;
@@ -459,6 +476,7 @@ export function App() {
         <header className="chrome">
           <nav className="menus" aria-label={t("menu.editor")}>
             <Menu label={t("menu.file")}>
+              <MenuItem label={t("file.new")} hint={shortcutLabel("N")} onSelect={() => void newFile()} />
               <MenuItem label={t("file.open")} hint={shortcutLabel("O")} onSelect={() => void openFile()} />
               <MenuItem label={t("file.save")} hint={shortcutLabel("S")} onSelect={() => void save()} />
               <MenuItem label={t("file.saveAs")} hint={shortcutLabel("⇧S")} onSelect={() => void saveAs()} />
